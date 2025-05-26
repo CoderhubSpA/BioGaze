@@ -98,7 +98,9 @@ def check_makeup(image, area1, area2):
     cropped_image2 = image[y_min:y_max, x_min:x_max]
     r_makeup = has_makeup(cropped_image2)
 
-    return l_makeup > config.MAKEUP_HIGH_HUE_THRESHOLD and r_makeup > config.MAKEUP_HIGH_HUE_THRESHOLD
+    makeup_mean = 0.5 * l_makeup + 0.5 * r_makeup
+
+    return np.clip(1 - makeup_mean, 0, 1)
 
 def check_red_eye(image, EVZ):
     """
@@ -154,9 +156,9 @@ def get_mean_color(image, area):
 def hue_distance(hue1, hue2):
     # Calculate the difference in hue values, accounting for the circular nature of hue
     diff = np.abs(hue1 - hue2)
-    return min(diff, 180 - diff)
+    return min(diff, 180 - diff) / 180
 
-def check_makeup_distance(image, skin_area1, skin_area2, eye_area1, eye_area2, threshold=config.MAKEUP_DISTANCE_THRESHOLD):
+def check_makeup_distance(image, skin_area1, skin_area2, eye_area1, eye_area2):
     # Convert image to HSV
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
@@ -173,16 +175,14 @@ def check_makeup_distance(image, skin_area1, skin_area2, eye_area1, eye_area2, t
     distance1 = hue_distance(mean_skin_area, eye_color1)
     distance2 = hue_distance(mean_skin_area, eye_color2)
 
-    # Determine if makeup is present based on the threshold
-    makeup_detected = (distance1 > threshold) and (distance2 > threshold)
-    return makeup_detected
+    return 0.5 * distance1 + 0.5 * distance2
 
 class LandmarkRecognizer:
   def __init__(self):
     """
     Initializes the face detector with the specified model path.
     """
-    predictor_path = './dlib_checkpoint/shape_predictor_68_face_landmarks.dat'
+    predictor_path = 'gaze_estimation/modules/dlib_checkpoint/shape_predictor_68_face_landmarks.dat'
     self.detector = dlib.get_frontal_face_detector()
     self.predictor = dlib.shape_predictor(predictor_path)
 
@@ -194,6 +194,14 @@ class LandmarkRecognizer:
       a boolean that is true if one of the two makeup checks results positive.
     '''
     image = cv2.imread(image_path)
+
+    # MAX_IMAGE_SIDE = 1000
+    # height, width, _ = image.shape
+    # if height > MAX_IMAGE_SIDE or width > MAX_IMAGE_SIDE:
+    #     scale = MAX_IMAGE_SIDE / max(height, width)
+    #     image_rgb = cv2.resize(image_rgb, (int(width * scale), int(height * scale)))
+    # else:
+    #     scale = 1.0
 
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
@@ -273,7 +281,8 @@ class LandmarkRecognizer:
 
     has_makeup_2 = check_makeup(image, left_SUN, right_SUN)
     has_makeup = check_makeup_distance(image, skin_left_cheek, skin_right_cheek, left_SUN, right_SUN)
-    return has_makeup or has_makeup_2
+    mean = 0.5 * has_makeup_2 + 0.5 * (1 - has_makeup)
+    return mean
         
   
 
@@ -285,6 +294,14 @@ class LandmarkRecognizer:
         uniform_luminosity: boolean that is true if the image has uniform illumination.
       '''
       image = cv2.imread(image_path)
+
+      # MAX_IMAGE_SIDE = 1000
+      # height, width, _ = image.shape
+      # if height > MAX_IMAGE_SIDE or width > MAX_IMAGE_SIDE:
+      #     scale = MAX_IMAGE_SIDE / max(height, width)
+      #     image_rgb = cv2.resize(image_rgb, (int(width * scale), int(height * scale)))
+      # else:
+      #     scale = 1.0
 
       image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
@@ -309,6 +326,14 @@ class LandmarkRecognizer:
       '''
       image = cv2.imread(image_path)
 
+      # MAX_IMAGE_SIDE = 1000
+      # height, width, _ = image.shape
+      # if height > MAX_IMAGE_SIDE or width > MAX_IMAGE_SIDE:
+      #     scale = MAX_IMAGE_SIDE / max(height, width)
+      #     image_rgb = cv2.resize(image_rgb, (int(width * scale), int(height * scale)))
+      # else:
+      #     scale = 1.0
+
       image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
       detected_boxes = self.detector(image_rgb)
@@ -320,7 +345,18 @@ class LandmarkRecognizer:
 
       mouth_open = self.calculate_mouth_open(shape)
 
-      return mouth_open
+      lips_landmarks = np.array([(p.x, p.y) for p in shape.parts()[48:60]], dtype=np.int32)
+      teeth_landmarks = np.array([(p.x, p.y) for p in shape.parts()[60:68]], dtype=np.int32)
+      lips_mask = np.zeros(image.shape[:2], dtype=np.uint8)
+      lips_mask = cv2.fillPoly(lips_mask, [lips_landmarks], 255)
+      lips_without_teeth_mask = lips_mask.copy()
+      lips_without_teeth_mask = cv2.fillPoly(lips_without_teeth_mask, [teeth_landmarks], 0)
+      teeth_mask = np.zeros(image.shape[:2], dtype=np.uint8)
+      teeth_mask = cv2.fillPoly(teeth_mask, [teeth_landmarks], 255)
+
+      percentage = np.count_nonzero(lips_without_teeth_mask) / np.count_nonzero(lips_mask)
+
+      return mouth_open, percentage
   
   def eyes_open_check(self, image_path):
    '''
@@ -342,7 +378,7 @@ class LandmarkRecognizer:
 
    eyes_open = self.calculate_eyes_open(shape)
 
-   return eyes_open
+   return 1 / (1 + np.exp(config.EYES_THRESHOLD - eyes_open))
   
   def head_location(self, image_path):
    '''
@@ -393,6 +429,14 @@ class LandmarkRecognizer:
     image = cv2.imread(image_path)
 
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    # MAX_IMAGE_SIDE = 1000
+    # height, width, _ = image.shape
+    # if height > MAX_IMAGE_SIDE or width > MAX_IMAGE_SIDE:
+    #     scale = MAX_IMAGE_SIDE / max(height, width)
+    #     image_rgb = cv2.resize(image_rgb, (int(width * scale), int(height * scale)))
+    # else:
+    #     scale = 1.0
 
     detected_boxes = self.detector(image_rgb)
 
@@ -880,41 +924,23 @@ class LandmarkRecognizer:
         "left_cheek": mi_left_cheek
     }
 
-    uniform_luminosity_squares = True
-
-    
-    avg = [0, 0, 0]
-
+    means = []
     for channel in range(3):  # Iterate over RGB channels
         mi_values = [mi_squares[square][channel] for square in mi_squares]
         max_mi = max(mi_values)
         min_mi = min(mi_values)
 
-        avg[channel] =  sum(mi_values) / len(mi_values)
+        means.append(min_mi / max_mi)
 
-        # Check the condition for each channel
-        if min_mi < config.MIN_COLOR_RATIO_THRESOLD * max_mi:
-            uniform_luminosity_squares = False
-            continue
-
-    if all(a > 220 for a in avg):
-      uniform_luminosity_squares = False
-    
-    return uniform_luminosity_squares
+    gray_value = 0.2126 * means[0] + 0.7152 * means[1] + 0.0722 * means[2] - 0.5
+    return 1 / (1 + np.exp(-gray_value))
   
   def calculate_mouth_open(self, shape):
     mouth_up = shape.part(62)
     mouth_down = shape.part(66)
-    
-    # Calculate the midpoint
-    mouth_mid_x = (mouth_up.x + mouth_down.x) / 2
-    mouth_mid_y = (mouth_up.y + mouth_down.y) / 2
-
-    # Midpoint as a tuple
-    mouth_mid = (mouth_mid_x, mouth_mid_y)
 
     mouth_opening = point_distance(mouth_up, mouth_down)
     lower_lip = point_distance(shape.part(66), shape.part(57))
-    mouth_open = 1 - min(1, mouth_opening / lower_lip)
+    mouth_open = 1 - min(1, 2 * mouth_opening / lower_lip)
 
     return mouth_open

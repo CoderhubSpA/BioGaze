@@ -1,16 +1,36 @@
+import sys
 import cv2
 import os
+from contextlib import contextmanager
+import logging
 from ultralytics import YOLO
 import numpy as np
 import config
+
+
+@contextmanager
+def silence_output():
+    with open(os.devnull, "w") as devnull:
+        old_stdout = sys.stdout
+        sys.stdout = devnull
+        sys.stderr = devnull
+        logging.getLogger("yolov5").setLevel(logging.ERROR)
+        try:
+            yield
+        finally:
+            sys.stdout = old_stdout
+            sys.stderr = old_stdout
+            logging.getLogger("yolov5").setLevel(logging.INFO)
+
 
 class FaceDetector:
     def __init__(self):
         """
         Initializes the face detector with the specified model path.
         """
-        model_path = "/mnt/c/users/osama/desktop/test_yolo/face-detection-yolov8/yolov8n-face.pt"
-        self.model = YOLO(model_path)
+        model_path = "detectors/models/yolov8n-face.pt"
+        with silence_output():
+            self.model = YOLO(model_path)
 
     def detector_analysis(self, image_path):
         """
@@ -24,15 +44,16 @@ class FaceDetector:
             num_faces: number of faces detected.
             correct_exposure: Boolean that indicates whether the face has correct exposure.
         """
-        results = self.model(image_path)  # Perform object detection
+        with silence_output():
+            results = self.model(image_path, verbose=False)  # Perform object detection
 
         if len(results[0]) != 1:
-            return len(results[0]), False
+            return len(results[0]), 0
         
         image = cv2.imread(image_path)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         
-        box = results[0][0]
+        box = results[0].boxes.xyxy.squeeze()
         top_left_x = int(box[0])
         top_left_y = int(box[1])
         bottom_right_x = int(box[2])
@@ -44,7 +65,7 @@ class FaceDetector:
         histogram = histogram / histo_sum
         bad_exposure  = self.analyze_exposure(histogram)
 
-        return len(results[0]), not bad_exposure
+        return len(results[0]), bad_exposure
     
     def detect_and_draw_faces(self, image_path, output_path=None):
         """
@@ -135,4 +156,5 @@ class FaceDetector:
 
         avg_dark = np.mean(histogram[0:170])
         max_dark = np.max(histogram[0:170])
-        return (avg_dark > config.AVG_DARK_THRESHOLD and max_dark > config.MAX_DARK_THRESHOLD) or (avg_light > config.AVG_LIGHT_THRESHOLD and max_light > config.MAX_LIGHT_THRESHOLD)
+        result = (avg_dark > config.AVG_DARK_THRESHOLD and max_dark > config.MAX_DARK_THRESHOLD) or (avg_light > config.AVG_LIGHT_THRESHOLD and max_light > config.MAX_LIGHT_THRESHOLD)
+        return 0 if result else 1

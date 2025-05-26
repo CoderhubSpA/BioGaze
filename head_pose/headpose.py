@@ -63,13 +63,24 @@ class HeadposeEstimator:
                 roll = angles[2] * 360
 
                 return pitch, yaw, roll
+            else:
+                raise ValueError(f"Failed to solve PnP for image at path: {image_path}")
 
     def headpose_compliant(self, image_path):
         # Load image
         image = cv2.imread(image_path)
 
+
         if image is None:
             raise FileNotFoundError(f"Image not found at path: {image_path}")
+        
+        # MAX_IMAGE_SIDE = 1000
+        # height, width, _ = image.shape
+        # if height > MAX_IMAGE_SIDE or width > MAX_IMAGE_SIDE:
+        #     scale = MAX_IMAGE_SIDE / max(height, width)
+        #     image = cv2.resize(image, (int(width * scale), int(height * scale)))
+        # else:
+        #     scale = 1.0
 
         # Process the image
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -114,6 +125,14 @@ class HeadposeEstimator:
                 pitch = angles[0] * 360
                 yaw = angles[1] * 360
                 roll = angles[2] * 360
+
+                pitch_normalized = (2 * pitch - config.MIN_PITCH - config.MAX_PITCH) / (config.MAX_PITCH - config.MIN_PITCH)
+                yaw_normalized = (2 * yaw - config.MIN_YAW - config.MAX_YAW) / (config.MAX_YAW - config.MIN_YAW)
+                roll_normalized = (2 * roll - config.MIN_ROLL - config.MAX_ROLL) / (config.MAX_ROLL - config.MIN_ROLL)
+                dist = np.sqrt(pitch_normalized ** 2 + yaw_normalized ** 2 + roll_normalized ** 2)
+                return np.clip(1 - 0.5 * dist, 0, 1)
+            else:
+                return 0
 
                 # Check head pose compliance
                 if pitch < config.MIN_PITCH or pitch > config.MAX_PITCH:

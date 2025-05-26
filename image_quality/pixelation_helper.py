@@ -22,15 +22,5 @@ def is_pixelated_difference_directional(image):
 def score_function(value):
     min_threshold = config.PIXELATED_MIN_THRESHOLD
     max_threshold = config.PIXELATED_MAX_THRESHOLD
-    # If the value is below the min_threshold, return True
-    if value < min_threshold:
-        return True
-    # If the value is above the max_threshold, return False
-    elif value > max_threshold:
-        return False
-    else:
-        # Calculate the position of the value in the range [min_threshold, max_threshold]
-        normalized_value = (value - min_threshold) / (max_threshold - min_threshold)
-        
-        # Return True if normalized_value is less than 0.5, False otherwise
-        return normalized_value < 0.5
+    normalized_value = np.clip((value - min_threshold) / (max_threshold - min_threshold), 0, 1)
+    return normalized_value

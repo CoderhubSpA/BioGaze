@@ -15,7 +15,7 @@ import time
 #model_checkpoint_path = './ckpt/epoch_24_ckpt.pth.tar'
 
 class GazeEstimator:
-    def __init__(self, shape_predictor_path='./modules/shape_predictor_68_face_landmarks.dat', face_model_path='face_model.txt', camera_calibration_path='./example/input/front_cam.xml', model_checkpoint_path='./ckpt/epoch_24_ckpt.pth.tar'):
+    def __init__(self, shape_predictor_path='modules/dlib_checkpoint/shape_predictor_68_face_landmarks.dat', face_model_path='face_model.txt', camera_calibration_path='./example/input/front_cam.xml', model_checkpoint_path='./ckpt/epoch_24_ckpt.pth'):
         current_dir = os.path.dirname(os.path.abspath(__file__))
 
         shape_predictor_path = os.path.join(current_dir, shape_predictor_path)
@@ -133,7 +133,5 @@ class GazeEstimator:
         hor_look = pred_gaze[1]  # Get yaw component
 
         # Compliance check
-        if hor_look > config.MAXIMUM_LEFT_THRESHOLD or hor_look < config.MAXIMUM_RIGHT_THRESHOLD:
-            return False
-        else:
-            return True
+        normalized_hor_look = (hor_look - config.MAXIMUM_RIGHT_THRESHOLD) / (config.MAXIMUM_LEFT_THRESHOLD - config.MAXIMUM_RIGHT_THRESHOLD)
+        return 1 - np.clip(normalized_hor_look, 0, 1)

@@ -27,9 +27,9 @@ def get_image_paths(input_path):
     return [input_path]
   elif os.path.isdir(input_path):
     # Use glob to search for image extensions (modify pattern if needed)
-    image_paths = glob.glob(os.path.join(input_path, "*.jpg"))
-    image_paths.extend(glob.glob(os.path.join(input_path, "*.jpeg")))
-    image_paths.extend(glob.glob(os.path.join(input_path, "*.png")))
+    image_paths = glob.glob(os.path.join(input_path, "**", "*.jpg"))
+    image_paths.extend(glob.glob(os.path.join(input_path, "**", "*.jpeg")))
+    image_paths.extend(glob.glob(os.path.join(input_path, "**", "*.png")))
     return image_paths
   else:
     raise ValueError(f"Invalid input path: {input_path}")

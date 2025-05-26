@@ -33,10 +33,12 @@ def compute_roc(y_pred: np.ndarray, y_true: np.ndarray):
 
 #threshold
 #0.1, non importante
-def compute_metrics(y_pred: np.ndarray, y_true: np.ndarray, thresholds):
+def compute_metrics(y_pred: np.ndarray, y_true: np.ndarray, thresholds: list[float]):
     Pfa, Pmiss = compute_roc(y_pred, y_true)
     eer_idx = np.nonzero(Pfa <= Pmiss)[0][0]
     eer = (Pmiss[eer_idx - 1] + Pfa[eer_idx]) / 2
+    y_pred_sorted = np.argsort(-y_pred, kind="stable")
+    eer_threshold = (y_pred[y_pred_sorted][eer_idx - 1] + y_pred[y_pred_sorted][eer_idx]) / 2
     np_thresholds = np.array(thresholds, dtype=np.float32)
     bpcer_idx = Pfa.shape[0] - np.searchsorted(np.flip(Pfa, axis=0), np_thresholds, side="right")
     d1 = np.abs(np_thresholds - Pmiss[bpcer_idx - 1])
@@ -44,4 +46,4 @@ def compute_metrics(y_pred: np.ndarray, y_true: np.ndarray, thresholds):
     w1 = d1 / (d1 + d2)
     w2 = d2 / (d1 + d2)
     bpcer = np.where(Pmiss[bpcer_idx - 1] == Pmiss[bpcer_idx], Pmiss[bpcer_idx], Pmiss[bpcer_idx - 1] * w1 + Pmiss[bpcer_idx] * w2)
-    return eer, bpcer
+    return eer, eer_threshold, bpcer

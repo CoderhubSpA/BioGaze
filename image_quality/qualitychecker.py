@@ -13,10 +13,7 @@ class QualityChecker:
       gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
       val = np.max(cv2.convertScaleAbs(cv2.Laplacian(gray, 3)))
 
-      if val < config.MINIMUM_FOCUS_THRESHOLD:
-         return True
-      else:
-         return False
+      return 1 / (1 + np.exp((config.MINIMUM_FOCUS_THRESHOLD - val) / 255))
 
     def is_pixelated(self, image_path):
       image = cv2.imread(image_path)
@@ -27,6 +24,8 @@ class QualityChecker:
     def is_posterized(self, image_path):
       image = cv2.imread(image_path)
       num_gaps = analyze_rgb_channels(image, gap_threshold=config.GAP_HISTOGRAM_THRESHOLD)
+
+      return np.clip(1 - num_gaps / config.MAX_GAPS_THRESHOLD, 0, 1)
 
       if num_gaps > config.MAX_GAPS_THRESHOLD:
           return True

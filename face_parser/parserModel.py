@@ -93,7 +93,7 @@ class FaceParser:
             #cv2.imwrite(save_path[:-4] +'.png', vis_parsing_anno)
             cv2.imwrite(save_path, vis_im, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
 
-        # return vis_im
+        return vis_im
 
 
     def parse_and_save_faces(self, image_path, output_path=None):
@@ -164,30 +164,24 @@ class FaceParser:
 
                 # Ensure the image has 3 channels (in case it's grayscale)
                 if image_np.ndim == 2:
-                    image_np = cv2.cvtColor(image_np, cv2.COLOR_GRAY2BGR)
-
-                # Apply the mask to isolate sunglasses region
-                sunglasses_pixels = cv2.bitwise_and(image_np, image_np, mask=sunglasses_mask)
+                    image_np = cv2.cvtColor(image_np, cv2.COLOR_GRAY2RGB)
 
                 # Convert the region to HSV
-                hsv_image = cv2.cvtColor(sunglasses_pixels, cv2.COLOR_BGR2HSV)
+                hsv_image = cv2.cvtColor(image_np, cv2.COLOR_RGB2HSV)
 
                 # Extract the V (value) channel
                 v_channel = hsv_image[:, :, 2]
 
                 # Calculate the histogram of the V channel (Brightness)
-                v_hist = cv2.calcHist([v_channel], [0], None, [256], [0, 256])
+                v_hist = cv2.calcHist([v_channel], [0], sunglasses_mask, [256], [0, 256])
                 v_hist = v_hist / v_hist.sum()
 
                 less_dark = v_hist[20:50].sum()  # Slightly darker pixels
                 #print(less_dark)
 
-                if less_dark > config.MAX_LIGHT_DARK_SUN:
-                    return True
-                else:
-                    return False
+                return np.clip(1 - less_dark, 0, 1)
             else:
-                return False
+                return 1.0
 
         
     def has_hat(self, image_path):
@@ -330,7 +324,7 @@ class FaceParser:
             return shoulder_check 
 
 
-    def detect_hat_glasses(self, image_path):
+    def detect_hat(self, image_path):
         with torch.no_grad():
             img = Image.open(image_path)
             image = img.resize((512, 512), Image.BILINEAR)
@@ -341,11 +335,9 @@ class FaceParser:
             parsing = out.squeeze(0).cpu().numpy().argmax(0)
             # Convert the PIL image to a numpy array
 
-            has_glasses = np.any(parsing == 6)
-            has_hat = np.any(parsing == 18)
-
-            return has_glasses, has_hat
-
+            non_background_pixels_count = np.count_nonzero(parsing != 0)
+            hat_pixels_count = np.count_nonzero(parsing == 18)
+            return 1 - hat_pixels_count / non_background_pixels_count
 
     def parser_analysis(self, image_path):
         with torch.no_grad():
@@ -459,56 +451,35 @@ class FaceParser:
         
         # Extract the background pixels (where parsing == 0)
         background_mask = (parsing == 0).astype(np.uint8)
-        background_pixels = image_np[background_mask == 1]
-
-        # Compute color variance
-        variance = np.var(background_pixels, axis=0)
-
-        average_variance = np.mean(variance)
-
         image_lab = rgb2lab(image_np)
 
         # Perform SLIC superpixel segmentation
-        segments = slic(image_lab, n_segments=200, compactness=10, sigma=1, start_label=1)
+        segments = slic(image_lab, n_segments=300, compactness=10, sigma=0, start_label=1)
 
         # Find the unique segments
         all_segments = np.unique(segments)
 
         # Only keep segments where ALL pixels belong to the background
-        background_segments = []
+        gradient_mask = np.zeros_like(background_mask)
         for segment in all_segments:
             segment_mask = (segments == segment)
             # Check if all pixels of the segment are background pixels
             if np.all(background_mask[segment_mask] == 1):
-                background_segments.append(segment)
+                gradient_mask[segment_mask] = 1
 
-        # Compute the proportion of superpixels that are homogeneous
-        homogeneous_count = 0
-        for segment in background_segments:
-            segment_mask = (segments == segment)
-            segment_pixels = image_np[segment_mask]
-            # Compute color variance within this segment
-            segment_variance = np.var(segment_pixels, axis=0)
-            if np.max(segment_variance) < config.SUPERPIXEL_VARIANCE_THRESHOLD:
-                homogeneous_count += 1
-
-        # Calculate the proportion of homogeneous background superpixels
-        if len(background_segments) > 0:
-            proportion_homogeneous = homogeneous_count / len(background_segments)
-        else:
-            proportion_homogeneous = 0  # Handle case where no valid background segments are found
         # Convert the image to grayscale
         gray_image = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
-        
-        # Apply Canny edge detection
-        edges = cv2.Canny(gray_image, 30, 100)
 
-        # Count number of edges in the background
-        num_background_edges = np.sum(edges[background_mask])
-        
-        # Return the number of edges in the background
-        return num_background_edges < config.MAX_EDGES_THRESHOLD and average_variance < config.AVG_VARIANCE_THRESHOLD and proportion_homogeneous > config.HOMOGENEOUS_PROPORTION_THRESHOLD
-        
+        dx = cv2.Sobel(gray_image, cv2.CV_64F, 1, 0)
+        dy = cv2.Sobel(gray_image, cv2.CV_64F, 0, 1)
+        magnitude = cv2.magnitude(dx, dy)
+
+        # Mask out the non-background areas in the magnitude image
+        background_magnitude = magnitude[gradient_mask == 1]
+        mean = background_magnitude.mean()
+        # Compute 1 - sigmoid(mean - threshold)
+        sig = 1 / (1 + np.exp(10.793404579162598 - mean))
+        return 1 - sig
 
 
     def calculation_head_dimensions(self, parsing):
@@ -569,55 +540,29 @@ class FaceParser:
         left_count = len(left_shoulder_pixels)
         right_count = len(right_shoulder_pixels)
 
-        # Output the counts for debugging
-        def calculate_centroid(pixels):
-            if len(pixels) == 0:
-                return (0, 0)  # Avoid division by zero
-            return (np.mean(pixels[:, 0]), np.mean(pixels[:, 1]))
+        min_count = min(left_count, right_count)
+        max_count = max(left_count, right_count)
+        pixel_ratio = min_count / max_count if max_count > 0 else 0
 
-        left_centroid = calculate_centroid(left_shoulder_pixels)
-        right_centroid = calculate_centroid(right_shoulder_pixels)
-
-        shoulder_check = True
-
-        pixel_ratio = min(left_count, right_count) / max(left_count, right_count) if max(left_count, right_count) > 0 else 0
-        if pixel_ratio < config.MAX_SHOULDER_PIXEL_RATIO:
-            shoulder_check = False
-
-        if abs(left_centroid[0] - right_centroid[0]) > config.MAX_SHOULDER_Y_DISTANCE:
-            shoulder_check = False
-
-        return shoulder_check
+        return pixel_ratio
     
     
     def calculate_saturation_personal(self, parsing, image):
         #face mask
-        mask = (parsing == 1).astype(np.uint8)
+        mask = parsing == 1
 
         # Convert to OpenCV format (BGR)
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        hsv_image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
 
-        # Apply face mask
-        masked_image = cv2.bitwise_and(image, image, mask=mask)
+        sat_channel = hsv_image[:, :, 1][mask]
+        oversaturated_pixels = np.sum(sat_channel > 200)
+        undersaturated_pixels = np.sum(sat_channel < 40)
+        total_pixels = np.count_nonzero(mask)
 
-        # Convert masked image to HSV color space
-        hsv_image = cv2.cvtColor(masked_image, cv2.COLOR_BGR2HSV)
+        oversaturation_percentage = oversaturated_pixels / total_pixels
+        undersaturation_percentage = undersaturated_pixels / total_pixels
 
-        oversaturated_pixels = np.sum(hsv_image[:, :, 1] > 200)
-        undersaturated_pixels = np.sum(hsv_image[:, :, 1] < 50)
-        peak_pixels = np.sum(hsv_image[:, :, 1] < 5)
-        total_pixels = hsv_image.shape[0] * hsv_image.shape[1]
-
-        oversaturation_percentage = oversaturated_pixels / total_pixels * 100
-        undersaturation_percentage = (undersaturated_pixels - peak_pixels) / total_pixels * 100
-
-        #print(undersaturation_percentage)
-
-        #return oversaturation_percentage, undersaturation_percentage
-
-        bad_saturation = oversaturation_percentage > config.OVERSATURATION_THRESHOLD or undersaturation_percentage > config.UNDERSATURATION_THRESHOLD
-
-        return bad_saturation
+        return 1 - oversaturation_percentage - undersaturation_percentage
     
     def calculate_face_illumination(self, parsing, image):
         # Convert the PIL image to a numpy array
@@ -625,26 +570,20 @@ class FaceParser:
         
         # Create mask for face pixels
         mask = (parsing == 1).astype(np.uint8)
-        
-        # Apply the mask to the image to get only face pixels
-        face_pixels = cv2.bitwise_and(image, image, mask=mask)
-        
-        face_pixels_gray = cv2.cvtColor(face_pixels, cv2.COLOR_BGR2GRAY)
+
+        face_pixels_gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         
         # Mask out the non-face areas in the grayscale image
         face_pixels_gray_masked = face_pixels_gray[mask == 1]
-
-        bright_pixels = np.count_nonzero(face_pixels_gray_masked > 220)
         total_pixels = face_pixels_gray_masked.size
-        bright_pixels_percentage = (bright_pixels / total_pixels) * 100
 
-        dark_pixels = np.count_nonzero(face_pixels_gray_masked < 100)
-        dark_pixels_percentage = (dark_pixels / total_pixels) * 100
+        # correct_pixels = np.count_nonzero((face_pixels_gray_masked >= 80) & (face_pixels_gray_masked <= 230))
+        # correct_pixels_percentage = correct_pixels / total_pixels
 
-        if bright_pixels_percentage > config.MAX_BRIGHT_LIGHT or dark_pixels_percentage > config.MAX_DARK_LIGHT:
-            return False
-        else:
-            return True
+        too_dark_percentage = np.count_nonzero(face_pixels_gray_masked < 70) / total_pixels
+        too_light_percentage = np.count_nonzero(face_pixels_gray_masked > 230) / total_pixels
+
+        return 1 - too_dark_percentage - too_light_percentage
         
 
     def calculate_sunglasses(self, parsing, image):

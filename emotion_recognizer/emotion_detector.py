@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 from rmn import RMN  # Assuming this is the model you're using.
 import config
 import os
@@ -25,23 +26,13 @@ class EmotionDetector:
         # Use the model to detect emotion.
         results = self.model.detect_emotion_for_single_frame(image)
 
-        # Extract most probable emotion label and probability
-        emo_label = results[0]['emo_label']
-        emo_most_proba = round(results[0]['emo_proba'], 3)
-
-        # Extract the second most probable emotion's probability
+        # Extract the emotions and their probabilities.
         proba_list = results[0]['proba_list']
-        sorted_proba = sorted([list(item.values())[0] for item in proba_list], reverse=True)
-        second_most_proba = round(sorted_proba[1], 3)
 
-        # Calculate the ratio between the second most probable and the most probable emotion
-        emo_rat = second_most_proba / emo_most_proba
-
-        # Determine the suffix based on conditions
-        if emo_label == "neutral" and emo_rat < config.MAX_RATIO_EMOTION:
-            return True
-        else:
-            return False
+        for d in proba_list:
+            k, v = list(d.items())[0]
+            if k == "neutral":
+                return v
         
     def draw_emotion(self, img_path):
         image = cv2.imread(img_path)
