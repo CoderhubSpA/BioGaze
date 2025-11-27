@@ -1,10 +1,11 @@
 opencv-python
-torch
+torch>=2.0,<2.6
 torchvision
 tabulate
-ultralytics==8.0.0
+ultralytics>=8.0.196
 dlib
 mediapipe
 scikit-image
 rmn
 imutils
+pandas
