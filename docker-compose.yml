@@ -1,0 +1,25 @@
+version: '3.8'  
+  
+services:  
+  biogaze:  
+    build:  
+      context: .  
+      dockerfile: Dockerfile  
+    image: biogaze:latest  
+      
+    volumes:  
+      - ./:/app:cached  
+      # Checkpoints - RUTA CORREGIDA  
+      - ./dlib_checkpoint:/app/dlib_checkpoint  
+      - ./dlib_checkpoint:/app/gaze_estimation/modules/dlib_checkpoint   
+      - ./face_parser/res/cp:/app/face_parser/res/cp  
+      - ./gaze_estimation/ckpt:/app/gaze_estimation/ckpt  
+      - ./input_images:/app/input_images:ro  
+      
+    environment:  
+      - PYTHONDONTWRITEBYTECODE=1  
+      - PYTHONUNBUFFERED=1  
+      
+    working_dir: /app
+    command: python quality_analysis.py -i /app/input_images
+    restart: "no"
