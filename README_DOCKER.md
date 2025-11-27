@@ -26,6 +26,8 @@ Dentro de Dockerfile estara el repositorio para clonar
 
 sera necesario descargar los siguientes modelos:
 
+**sera necesario crear las carpetas de dlib_checkpoit, input_images, cd**
+
 - Debes descargar el **checkpoint de dlib** desde [este enlace](https://drive.google.com/file/d/1Xkwoou-5xTg_o8zq7hih5bZF3BaXtnU5/view?usp=sharing) y colocarlo en el directorio `dlib_checkpoint` y en el directorio `gaze_estimation/modules/dlib_checkpoint`.
 - Debes descargar el **checkpoint del analizador facial (face parser)** desde [este enlace](https://drive.google.com/file/d/1Hvd6tDmCVuF0KUtFIZQ_WXKlQvcHTQbm/view?usp=sharing) y colocarlo en el directorio `face_parser/res/cp`.
 - Debes descargar el **checkpoint de estimación de la mirada (gaze estimation)** desde [este enlace](https://drive.google.com/file/d/1bAjhZeTwSgVMf48m8VWfHFBN7EbVjZRW/view?usp=sharing) y colocarlo en el directorio `gaze_estimation/ckpt`.
@@ -35,7 +37,7 @@ sera necesario descargar los siguientes modelos:
 
 ---
 ## **Carpetas**
-sera necesario crear las carpetas de dlib_checkpoit, input_images,
+**sera necesario crear las carpetas de dlib_checkpoit, input_images, cd**
 
 BioGaze/
 ├── input_images/ # Aquí pones imágenes de entrada (.jpg, .png, etc.)
@@ -58,14 +60,6 @@ BioGaze/
 ├── docker-compose.yml
 ├── requirements.txt
 └── ...otros archivos del repo
-
-## **modificacion de requirementes.txt**
-
-sera necesario cambiar las versiones de:
- ultralytics==8.0.0 a `ultralytics>=8.0.196`
- torch a `torch>=2.0,<2.6`
-y por ultimo agregar:
- `pandas`
 
 ## para lanzar el contenedor
 
