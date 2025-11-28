@@ -18,12 +18,6 @@
 
 ## descargas e instalacion
 
----
-
-Dentro de Dockerfile estara el repositorio para clonar
-
----
-
 sera necesario descargar los siguientes modelos:
 
 **sera necesario crear las carpetas de dlib_checkpoit, input_images, cp**
