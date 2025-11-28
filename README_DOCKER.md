@@ -26,7 +26,7 @@ Dentro de Dockerfile estara el repositorio para clonar
 
 sera necesario descargar los siguientes modelos:
 
-**sera necesario crear las carpetas de dlib_checkpoit, input_images, cd**
+**sera necesario crear las carpetas de dlib_checkpoit, input_images, cp**
 
 - Debes descargar el **checkpoint de dlib** desde [este enlace](https://drive.google.com/file/d/1Xkwoou-5xTg_o8zq7hih5bZF3BaXtnU5/view?usp=sharing) y colocarlo en el directorio `dlib_checkpoint` y en el directorio `gaze_estimation/modules/dlib_checkpoint`.
 - Debes descargar el **checkpoint del analizador facial (face parser)** desde [este enlace](https://drive.google.com/file/d/1Hvd6tDmCVuF0KUtFIZQ_WXKlQvcHTQbm/view?usp=sharing) y colocarlo en el directorio `face_parser/res/cp`.
@@ -37,7 +37,7 @@ sera necesario descargar los siguientes modelos:
 
 ---
 ## **Carpetas**
-**sera necesario crear las carpetas de dlib_checkpoit, input_images, cd**
+**sera necesario crear las carpetas de dlib_checkpoit, input_images, cp**
 
 BioGaze/
 ├── input_images/ # Aquí pones imágenes de entrada (.jpg, .png, etc.)
@@ -68,5 +68,7 @@ luego usar el comando docker compose run biogaze bash para entrar en el contened
 luego usar el comando de python quality_analysis.py -i /app/input_images/image_example.jpg
 para que funcionen los script
 los resultados saldran en los archivos table_results.txt y verbose_results.txt
+
+`si al intentar levantarlo este falla por no encontrar "verbose_results.txt" intentar entrar otra vez en en contenedor con el comando "docker compose run biogaze bash" y usar hacer el script para que este genere el archi "verbose_results.txt"`
 
 **recordar colocar imagenes dentro de input_images**
