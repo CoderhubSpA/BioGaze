@@ -8,7 +8,8 @@ services:
     image: biogaze:latest  
       
     volumes:  
-      - ./:/app:cached  
+      - ./:/app:cached
+      - /app/.venv
       # Checkpoints - RUTA CORREGIDA  
       - ./dlib_checkpoint:/app/dlib_checkpoint  
       - ./dlib_checkpoint:/app/gaze_estimation/modules/dlib_checkpoint   
