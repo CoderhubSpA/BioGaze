@@ -193,13 +193,17 @@ class BioGazeAdapter(IPhotoValidator):
             results["compliant"] = False
             results["reasons"].append("Se detectó sombrero o cubierta en la cabeza")
         
-        if not homogeneous_background:
+        # CORRECCIÓN FONDO: Usar umbral más estricto
+        # homogeneous_background es un score (0.0 = Malo/Complejo, 1.0 = Liso/Bueno)
+        MIN_BACKGROUND_SCORE = 0.85
+        
+        if homogeneous_background < MIN_BACKGROUND_SCORE:
             results["compliant"] = False
-            results["reasons"].append("El fondo no es homogéneo (debe ser liso)")
+            results["reasons"].append("El fondo no es homogéneo (debe ser uniforme, claro y sin objetos)")
 
         if has_sunglasses:
             results["compliant"] = False
-            results["reasons"].append("Se detectaron gafas de sol")
+            results["reasons"].append("Se detectaron lentes oscuros/lentes de sol")
             
         if not shoulder_check:
              results["compliant"] = False
@@ -263,27 +267,30 @@ class BioGazeAdapter(IPhotoValidator):
             results["reasons"].append("Mirada no dirigida a la cámara")
 
         # 7. Calidad de Imagen
-        is_posterized = self.quality_checker.is_posterized(image_path)
-        is_pixelated = self.quality_checker.is_pixelated(image_path)
-        out_of_focus = self.quality_checker.is_out_of_focus(image_path)
+        # NOTA: Las funciones devuelven un SCORE de calidad (0.0 = Malo, 1.0 = Bueno)
+        # is_posterized -> 1.0 = No posterizada (Bien)
+        # out_of_focus -> 1.0 = Enfocada (Bien)
+        
+        quality_posterization_score = self.quality_checker.is_posterized(image_path)
+
+        # is_pixelated = self.quality_checker.is_pixelated(image_path)
+        
+        quality_focus_score = self.quality_checker.is_out_of_focus(image_path)
+
+        # Umbrales de aceptación (Hardcodeados por seguridad o mover a config)
+        MIN_QUALITY_SCORE = 0.5
 
         results["details"]["quality"] = {
-            "posterized": bool(is_posterized),
-            "pixelated": bool(is_pixelated),
-            "out_of_focus": bool(out_of_focus)
+            "posterization_score": float(quality_posterization_score),
+            "focus_score": float(quality_focus_score)
         }
 
-        if is_posterized:
+        
+        if quality_posterization_score < MIN_QUALITY_SCORE:
             results["compliant"] = False
             results["reasons"].append("Efecto de posterización detectado (baja calidad de color)")
         
-        '''
-        if is_pixelated:
-            results["compliant"] = False
-            results["reasons"].append("Imagen pixelada (baja resolución)")
-        '''  
-
-        if out_of_focus:
+        if quality_focus_score < MIN_QUALITY_SCORE:
             results["compliant"] = False
             results["reasons"].append("Imagen desenfocada")
 
