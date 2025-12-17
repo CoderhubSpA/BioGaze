@@ -284,7 +284,6 @@ class BioGazeAdapter(IPhotoValidator):
         eyes_open_val = land_res[1]
         mouth_open_val = land_res[2]
         uniform_luminosity = land_res[5]
-        has_makeup = land_res[8]
 
         results["technical_metrics"]["landmarks"] = {
             "inter_eye_distance": float(inter_eye_distance),
@@ -292,33 +291,14 @@ class BioGazeAdapter(IPhotoValidator):
             "mouth_open_score": float(mouth_open_val)
         }
 
-        eyes_open_compliant = eyes_open_val >= config.EYES_THRESHOLD
-        if not eyes_open_compliant:
-            results["compliant"] = False
-            results["reasons"].append("Ojos cerrados o parcialmente cerrados")
-        
         if mouth_open_val < config.MOUTH_THRESHOLD:
              results["compliant"] = False
              results["reasons"].append("Boca abierta detectada")
 
-        # CORRECCIÓN MAQUILLAJE: Usar umbral en vez de booleano
-        # Basado en el código, parece ser score de naturalidad (1-mean).
-        # Se rechaza si la naturalidad es baja.
-        MAKEUP_THRESHOLD = 0.5 
-        if has_makeup < MAKEUP_THRESHOLD:
-             results["compliant"] = False
-             results["reasons"].append("Maquillaje excesivo detectado")
-             
         if not uniform_luminosity:
              results["compliant"] = False
              results["reasons"].append("Luminosidad no uniforme en el rostro")
 
-        # 5. Emoción - DEPRECADO
-        # neutral_expression = self.emotion_recognizer.check_neutral_expression(image_path)
-        # results["details"]["expression"] = {"neutral": bool(neutral_expression)}
-        # if not neutral_expression:
-        #     results["compliant"] = False
-        #     results["reasons"].append("Expresión facial no neutral (sonrisa, gesto, etc.)")
 
         # 6. Mirada (Gaze)
         gaze_in_camera = self.gaze_model.calculate_gaze(image_path)
