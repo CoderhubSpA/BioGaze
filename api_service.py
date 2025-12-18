@@ -8,12 +8,16 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Security, Depends
 from fastapi.security.api_key import APIKeyHeader
+from dotenv import load_dotenv
 from pydantic import BaseModel
 from datetime import datetime
+
+load_dotenv()  # Cargar variables de entorno ANTES de importar módulos que usen DB
 
 # Importamos la interfaz y el adaptador (Inyección de Dependencias manual)
 from interfaces import IPhotoValidator, ValidationResult
 from adapters import BioGazeAdapter
+from db_repository import save_validation_result
 
 # --- Configuración ---
 UPLOAD_DIR = "temp_uploads"
@@ -32,12 +36,22 @@ async def get_api_key(api_key_header: str = Security(api_key_header)):
     raise HTTPException(status_code=403, detail="No se pudieron validar las credenciales")
 
 # --- Configuración de Logs ---
-logging.basicConfig(
-    filename=LOG_FILE,
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
 logger = logging.getLogger("BioGazeAPI")
+logger.setLevel(logging.INFO)
+
+# Evitar duplicar handlers si se recarga el módulo
+if not logger.handlers:
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
+    # Handler de Archivo
+    file_handler = logging.FileHandler(LOG_FILE)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    # Handler de Consola (para Docker logs)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
 
 # --- Estado Global ---
 # Aquí definimos la variable como la INTERFAZ, no la clase concreta
@@ -140,15 +154,27 @@ async def validate_photo(
             "motivos_rechazo": result.reasons
         }
 
-        # 5. Almacenamiento de Auditoría
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        audit_folder = os.path.join(AUDIT_DIR, today_str, estado_str)
-        os.makedirs(audit_folder, exist_ok=True)
+        # 5. Almacenamiento de Auditoría (DESACTIVADO: Se guarda en BD)
+        # today_str = datetime.now().strftime("%Y-%m-%d")
+        # audit_folder = os.path.join(AUDIT_DIR, today_str, estado_str)
+        # os.makedirs(audit_folder, exist_ok=True)
         
-        final_path = os.path.join(audit_folder, temp_filename)
-        shutil.move(temp_path, final_path)
+        # final_path = os.path.join(audit_folder, temp_filename)
+        # shutil.move(temp_path, final_path)
         
-        logger.info(f"Imagen almacenada para auditoría en: {final_path}")
+        # logger.info(f"Imagen almacenada para auditoría en: {final_path}")
+
+        # 5.1. Guardar en Base de Datos
+        try:
+            db_validation_result = {
+                "compliant": result.compliant,
+                "reasons": result.reasons
+            }
+            # Usamos temp_path ya que no movemos el archivo a audit_storage
+            save_validation_result(temp_path, file.filename, db_validation_result)
+        except Exception as db_error:
+            logger.error(f"Error guardando en BD para ID {request_id}: {db_error}")
+            # No interrumpimos el flujo principal si falla la BD
 
         # 6. Registrar Resultado
         processing_time = time.time() - start_time
@@ -158,9 +184,14 @@ async def validate_photo(
 
     except Exception as e:
         logger.error(f"Error procesando ID: {request_id}: {str(e)}")
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
         raise HTTPException(status_code=500, detail=f"Error Interno del Servidor: {str(e)}")
+    finally:
+        # Limpieza de archivo temporal
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception as cleanup_error:
+                logger.warning(f"No se pudo eliminar archivo temporal {temp_path}: {cleanup_error}")
 
 if __name__ == "__main__":
     import uvicorn

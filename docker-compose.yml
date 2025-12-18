@@ -20,6 +20,13 @@ services:
     environment:  
       - PYTHONDONTWRITEBYTECODE=1  
       - PYTHONUNBUFFERED=1  
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASS}
+      - DB_NAME=${DB_NAME}
+    
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
       
     working_dir: /app
     # command: python quality_analysis.py -i /app/input_images
