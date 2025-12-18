@@ -8,11 +8,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Security, Depends
 from fastapi.security.api_key import APIKeyHeader
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 from pydantic import BaseModel
 from datetime import datetime
 
-# load_dotenv()  # Cargar variables de entorno ANTES de importar módulos que usen DB
+load_dotenv()  # Cargar variables de entorno ANTES de importar módulos que usen DB
 
 # Importamos la interfaz y el adaptador (Inyección de Dependencias manual)
 from interfaces import IPhotoValidator, ValidationResult
