@@ -211,7 +211,7 @@ parser_checks_map = {
 
 # Visual Language Model (VLM) settings
 VLM_ENABLED = os.getenv("VLM_ENABLED", "true").lower() not in {"false", "0", "no"}
-VLM_ENDPOINT = os.getenv("VLM_ENDPOINT", "http://localhost:8000/v1")
+VLM_ENDPOINT = os.getenv("VLM_ENDPOINT", "http://localhost:8000/")
 VLM_API_KEY = os.getenv("VLM_API_KEY", "")
 VLM_MODEL_NAME = os.getenv("VLM_MODEL_NAME", "Qwen3-VL")
 VLM_REQUEST_TIMEOUT = int(os.getenv("VLM_REQUEST_TIMEOUT", "120"))

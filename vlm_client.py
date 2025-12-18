@@ -4,6 +4,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, Optional
+from urllib import request
 
 from openai import OpenAI
 
@@ -61,6 +62,38 @@ def _normalize_yes_no(text: Optional[str]) -> Optional[str]:
     return None
 
 
+def _strip_version_suffix(url: str) -> str:
+    if not url:
+        raise ValueError("VLM endpoint is empty")
+    normalized = url.rstrip("/")
+    if normalized.endswith("/v1"):
+        normalized = normalized[:-3]
+    return normalized.rstrip("/")
+
+
+def _openai_base_url(endpoint: str) -> str:
+    root = _strip_version_suffix(endpoint)
+    return f"{root}/v1"
+
+
+def ensure_vlm_alive(endpoint: str, timeout: float = 5.0) -> str:
+    """
+    Ping the VLM /ping endpoint to make sure the server is reachable.
+    Returns the normalized root endpoint (without /v1) if successful.
+    Raises RuntimeError on failure so callers can fail fast at startup.
+    """
+    root = _strip_version_suffix(endpoint)
+    ping_url = f"{root}/ping"
+    try:
+        with request.urlopen(ping_url, timeout=timeout) as resp:
+            status = getattr(resp, "status", None)
+            if status != 200:
+                raise RuntimeError(f"Unexpected ping status {status} from {ping_url}")
+    except Exception as exc:
+        raise RuntimeError(f"VLM server not reachable at {ping_url}: {exc}") from exc
+    return root
+
+
 class VLMClient:
     def __init__(
         self,
@@ -71,8 +104,13 @@ class VLMClient:
         max_tokens: int,
         temperature: float,
         max_concurrency: int,
+        ping_timeout: float = 5.0,
     ):
-        self.client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+        # Fail fast if the VLM server is not reachable.
+        self.endpoint_root = ensure_vlm_alive(base_url, timeout=ping_timeout)
+        openai_base_url = _openai_base_url(self.endpoint_root)
+
+        self.client = OpenAI(api_key=api_key, base_url=openai_base_url, timeout=timeout)
         self.model = model
         self.max_tokens = max_tokens
         self.temperature = temperature
