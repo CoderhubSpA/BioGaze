@@ -209,6 +209,7 @@ dlib_checkpoint/
 
 # cp
 face_parser/res/cp/
+face_parser/res/test_res/cp/79999_iter.pth
 
 # ckpt 
 gaze_estimation/ckpt/epoch_24_ckpt.pth
@@ -218,3 +219,6 @@ res10_300x300_ssd_iter_140000.caffemodel
 deploy.prototxt.txt
 
 pretrained_ckpt
+
+#torch_wheels/
+torch_wheels/

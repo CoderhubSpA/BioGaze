@@ -264,27 +264,32 @@ class BioGazeEngine:
             results["compliant"] = False
             results["reasons"].append("Gaze not directed at camera")
 
-        # 7. Image Quality
-        is_posterized = self.quality_checker.is_posterized(image_path)
-        is_pixelated = self.quality_checker.is_pixelated(image_path)
-        out_of_focus = self.quality_checker.is_out_of_focus(image_path)
+           # 7. Image Quality
+is_posterized = self.quality_checker.is_posterized(image_path)
+is_pixelated = self.quality_checker.is_pixelated(image_path)
+focus_score = self.quality_checker.is_out_of_focus(image_path)
 
-        results["details"]["quality"] = {
-            "posterized": bool(is_posterized),
-            "pixelated": bool(is_pixelated),
-            "out_of_focus": bool(out_of_focus)
-        }
+print(f"[BioGaze] Focus score for {os.path.basename(image_path)}: {focus_score:.4f}")
 
-        if is_posterized:
-            results["compliant"] = False
-            results["reasons"].append("Posterization detected")
-        
-        if is_pixelated:
-            results["compliant"] = False
-            results["reasons"].append("Pixelation detected")
-            
-        if out_of_focus:
-            results["compliant"] = False
-            results["reasons"].append("Image out of focus")
+out_of_focus = focus_score < config.MINIMUM_FOCUS_SCORE
+
+results["details"]["quality"] = {
+    "posterized": bool(is_posterized),
+    "pixelated": bool(is_pixelated),
+    "out_of_focus": bool(out_of_focus),
+    "focus_score": float(focus_score),
+}
+
+if is_posterized:
+    results["compliant"] = False
+    results["reasons"].append("Posterization detected")
+
+if is_pixelated:
+    results["compliant"] = False
+    results["reasons"].append("Pixelation detected")
+
+if out_of_focus:
+    results["compliant"] = False
+    results["reasons"].append("Imagen desenfocada")
 
         return self._convert_numpy_types(results)
