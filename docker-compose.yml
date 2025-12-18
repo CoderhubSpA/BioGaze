@@ -8,7 +8,8 @@ services:
     image: biogaze:latest  
       
     volumes:  
-      - ./:/app:cached  
+      - ./:/app:cached
+      - /app/.venv
       # Checkpoints - RUTA CORREGIDA  
       - ./dlib_checkpoint:/app/dlib_checkpoint  
       - ./dlib_checkpoint:/app/gaze_estimation/modules/dlib_checkpoint   
@@ -19,7 +20,19 @@ services:
     environment:  
       - PYTHONDONTWRITEBYTECODE=1  
       - PYTHONUNBUFFERED=1  
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASS}
+      - DB_NAME=${DB_NAME}
+    
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
       
     working_dir: /app
-    command: python quality_analysis.py -i /app/input_images
+    # command: python quality_analysis.py -i /app/input_images
+    # Exponer puerto para la API
+    ports:
+      - "8000:8000"
+    # Comando para iniciar la API en lugar del script de análisis
+    command: uvicorn api_service:app --host 0.0.0.0 --port 8000 --reload
     restart: "no"
