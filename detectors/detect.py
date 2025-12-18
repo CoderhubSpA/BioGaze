@@ -66,6 +66,21 @@ class FaceDetector:
         bad_exposure  = self.analyze_exposure(histogram)
 
         return len(results[0]), bad_exposure
+
+    def get_face_bbox(self, image_path):
+        """
+        Returns the bounding box of the detected face [x1, y1, x2, y2].
+        Returns None if no face or multiple faces are detected.
+        """
+        with silence_output():
+            results = self.model(image_path, verbose=False)
+        
+        if len(results[0]) != 1:
+            return None
+            
+        # Get box coordinates
+        box = results[0].boxes[0].xyxy[0].cpu().numpy() # [x1, y1, x2, y2]
+        return box.astype(int)
     
     def detect_and_draw_faces(self, image_path, output_path=None):
         """

@@ -1,8 +1,12 @@
 
 FROM python:3.10-slim
 
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV UV_COMPILE_BYTECODE=1
 
 WORKDIR /app
 
@@ -25,9 +29,16 @@ RUN apt-get update \
    liblapack-dev \
  && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /app/requirements.txt
-RUN python -m pip install --upgrade pip setuptools wheel \
- && pip install --no-cache-dir -r /app/requirements.txt
+# Copy dependency files
+COPY pyproject.toml uv.lock /app/
+
+# Install dependencies
+# --frozen: sync from lock file
+# --no-install-project: don't install the current project (we just want deps first)
+RUN uv sync --frozen --no-install-project --no-cache
+
+# Add .venv to PATH
+ENV PATH="/app/.venv/bin:$PATH"
 
 COPY . /app
 
