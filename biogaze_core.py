@@ -1,13 +1,15 @@
-import os
+import logging
 import config
 import numpy as np
 from detectors import detect
 from landmarks import landmark
 from head_pose import headpose
 from face_parser import parserModel
-from emotion_recognizer import emotion_detector
 from image_quality import qualitychecker
 from gaze_estimation import gaze_estimator
+from vlm_client import VLMClient
+
+logger = logging.getLogger("BioGazeAPI")
 
 class BioGazeEngine:
     def __init__(self):
@@ -16,9 +18,19 @@ class BioGazeEngine:
         self.landmark_recognizer = landmark.LandmarkRecognizer()
         self.pose_estimator = headpose.HeadposeEstimator()
         self.face_parser = parserModel.FaceParser()
-        self.emotion_recognizer = emotion_detector.EmotionDetector()
         self.quality_checker = qualitychecker.QualityChecker()
         self.gaze_model = gaze_estimator.GazeEstimator()
+        self.vlm_client = None
+        if config.VLM_ENABLED:
+            self.vlm_client = VLMClient(
+                api_key=config.VLM_API_KEY,
+                base_url=config.VLM_ENDPOINT,
+                model=config.VLM_MODEL_NAME,
+                timeout=config.VLM_REQUEST_TIMEOUT,
+                max_tokens=config.VLM_MAX_TOKENS,
+                temperature=config.VLM_TEMPERATURE,
+                max_concurrency=config.VLM_MAX_CONCURRENCY,
+            )
         print("BioGaze models loaded successfully.")
 
     def _convert_numpy_types(self, obj):
@@ -39,6 +51,29 @@ class BioGazeEngine:
             return self._convert_numpy_types(obj.tolist())
         else:
             return obj
+
+    def _build_vlm_checks(self, image_path: str):
+        raw_vlm_results = {}
+        vlm_error = None
+        if self.vlm_client:
+            try:
+                raw_vlm_results = self.vlm_client.evaluate(image_path, config.VLM_CHECK_PROMPTS)
+            except Exception as exc:
+                vlm_error = str(exc)
+                logger.error("VLM evaluation failed: %s", vlm_error)
+        vlm_checks = {}
+        for name, prompt_data in config.VLM_CHECK_PROMPTS.items():
+            outcome = raw_vlm_results.get(name, {}) if isinstance(raw_vlm_results, dict) else {}
+            normalized = outcome.get("normalized")
+            normalized = normalized.lower() if isinstance(normalized, str) else None
+            vlm_checks[name] = {
+                "answer": outcome.get("answer") if isinstance(outcome, dict) else None,
+                "normalized": normalized,
+                "latency": outcome.get("latency", 0.0) if isinstance(outcome, dict) else 0.0,
+                "passed": normalized == prompt_data.get("pass_if"),
+                "error": outcome.get("error") if isinstance(outcome, dict) else vlm_error,
+            }
+        return vlm_checks
 
     def validate_image(self, image_path):
         """
@@ -74,6 +109,15 @@ class BioGazeEngine:
             results["reasons"].append("Exposure not compliant")
         results["details"]["exposure"] = {"passed": bool(correct_exposure)}
 
+        vlm_checks = self._build_vlm_checks(image_path)
+        results["details"]["vlm_checks"] = vlm_checks
+
+        def vlm_pass(name: str) -> bool:
+            return vlm_checks.get(name, {}).get("passed", False)
+
+        def vlm_answer(name: str):
+            return vlm_checks.get(name, {}).get("normalized")
+
         # 2. Head Pose
         pitch, yaw, roll = self.pose_estimator.get_headpose_values(image_path)
         
@@ -108,35 +152,40 @@ class BioGazeEngine:
         # 3. Face Parser (Attributes)
         # has_hat, color_saturation, has_glasses, head_not_contained, chin_not_contained, shoulder_check, uniform_illumination, homogeneous_background, has_sunglasses
         parser_res = self.face_parser.parser_analysis(image_path)
-        has_hat = parser_res[0]
-        color_saturation = parser_res[1]
-        has_glasses = parser_res[2]
-        # head_not_contained = parser_res[3] # Not used in rejection logic in original script explicitly?
-        # chin_not_contained = parser_res[4]
-        shoulder_check = parser_res[5]
-        uniform_illumination = parser_res[6]
-        homogeneous_background = parser_res[7]
-        has_sunglasses = parser_res[8]
+        _, color_saturation, has_glasses, _, _, shoulder_check, uniform_illumination, _, _ = parser_res
+
+        headwear_answer = vlm_answer("headwear")
+        sunglasses_answer = vlm_answer("sunglasses")
+        background_pass = vlm_pass("background")
 
         results["details"]["attributes"] = {
-            "has_hat": bool(has_hat),
+            "has_hat": bool(headwear_answer == "yes"),
             "has_glasses": bool(has_glasses),
-            "has_sunglasses": bool(has_sunglasses),
-            "homogeneous_background": bool(homogeneous_background),
+            "has_sunglasses": bool(sunglasses_answer == "yes"),
+            "homogeneous_background": bool(background_pass),
             "uniform_illumination": bool(uniform_illumination)
         }
 
-        if has_hat:
+        if not vlm_pass("headwear"):
             results["compliant"] = False
-            results["reasons"].append("Hat/Head covering detected")
+            if headwear_answer == "yes":
+                results["reasons"].append("Hat/Head covering detected")
+            else:
+                results["reasons"].append("Head covering check inconclusive (VLM)")
         
-        if not homogeneous_background:
+        if not background_pass:
             results["compliant"] = False
-            results["reasons"].append("Background not homogeneous")
+            if vlm_answer("background") == "no":
+                results["reasons"].append("Background not homogeneous")
+            else:
+                results["reasons"].append("Background check inconclusive (VLM)")
 
-        if has_sunglasses:
+        if not vlm_pass("sunglasses"):
             results["compliant"] = False
-            results["reasons"].append("Sunglasses detected")
+            if sunglasses_answer == "yes":
+                results["reasons"].append("Sunglasses detected")
+            else:
+                results["reasons"].append("Sunglasses check inconclusive (VLM)")
             
         if not shoulder_check:
              results["compliant"] = False
@@ -150,6 +199,27 @@ class BioGazeEngine:
              results["compliant"] = False
              results["reasons"].append("Incorrect color saturation")
 
+        if not vlm_pass("eyes_open"):
+            results["compliant"] = False
+            if vlm_answer("eyes_open") == "no":
+                results["reasons"].append("Eyes closed or partially closed")
+            else:
+                results["reasons"].append("Eye openness check inconclusive (VLM)")
+
+        if not vlm_pass("neutral_expression"):
+            results["compliant"] = False
+            if vlm_answer("neutral_expression") == "no":
+                results["reasons"].append("Non-neutral expression detected")
+            else:
+                results["reasons"].append("Expression check inconclusive (VLM)")
+
+        if not vlm_pass("makeup"):
+            results["compliant"] = False
+            if vlm_answer("makeup") == "yes":
+                results["reasons"].append("Heavy makeup detected")
+            else:
+                results["reasons"].append("Makeup check inconclusive (VLM)")
+
 
         # 4. Landmarks (Eyes, Mouth)
         # inter_eye_distance, eyes_open, mouth_open, m_h, m_v, uniform_luminosity, image_height, image_width, has_makeup
@@ -158,18 +228,12 @@ class BioGazeEngine:
         eyes_open_val = land_res[1]
         mouth_open_val = land_res[2]
         uniform_luminosity = land_res[5]
-        has_makeup = land_res[8]
 
         results["technical_metrics"]["landmarks"] = {
             "inter_eye_distance": float(inter_eye_distance),
             "eyes_open_score": float(eyes_open_val),
             "mouth_open_score": float(mouth_open_val)
         }
-
-        eyes_open_compliant = eyes_open_val >= config.EYES_THRESHOLD
-        if not eyes_open_compliant:
-            results["compliant"] = False
-            results["reasons"].append("Eyes closed or partially closed")
 
         # Mouth open check (Logic from original script seems to check mouth_open_val against threshold)
         # Note: In original script, variable is `mouth_open` (boolean result of check?) No, `mouth_open` in `landmark_analysis` return seems to be a float ratio.
@@ -185,21 +249,10 @@ class BioGazeEngine:
              results["compliant"] = False
              results["reasons"].append("Mouth open detected")
 
-        if has_makeup:
-             results["compliant"] = False
-             results["reasons"].append("Heavy makeup detected")
-             
         if not uniform_luminosity:
              results["compliant"] = False
              results["reasons"].append("Non-uniform luminosity (Landmarks)")
-
-
-        # 5. Emotion
-        neutral_expression = self.emotion_recognizer.check_neutral_expression(image_path)
-        results["details"]["expression"] = {"neutral": bool(neutral_expression)}
-        if not neutral_expression:
-            results["compliant"] = False
-            results["reasons"].append("Non-neutral expression detected")
+        results["details"]["expression"] = {"neutral": bool(vlm_pass("neutral_expression"))}
 
         # 6. Gaze
         gaze_in_camera = self.gaze_model.calculate_gaze(image_path)

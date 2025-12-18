@@ -1,5 +1,10 @@
 #DETECTION
 
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 MAX_FACES = 1
 
 '''
@@ -201,5 +206,43 @@ parser_checks_map = {
     CORRECT_SATURATION: 'color_saturation',
     UNIFORM_BACKGROUND: 'homogeneous_background',
     UNIFORM_FACE_LIGHTING: 'uniform_illumination'
+}
+
+
+# Visual Language Model (VLM) settings
+VLM_ENABLED = os.getenv("VLM_ENABLED", "true").lower() not in {"false", "0", "no"}
+VLM_ENDPOINT = os.getenv("VLM_ENDPOINT", "http://localhost:8000/")
+VLM_API_KEY = os.getenv("VLM_API_KEY", "")
+VLM_MODEL_NAME = os.getenv("VLM_MODEL_NAME", "Qwen3-VL")
+VLM_REQUEST_TIMEOUT = int(os.getenv("VLM_REQUEST_TIMEOUT", "120"))
+VLM_MAX_TOKENS = int(os.getenv("VLM_MAX_TOKENS", "4"))
+VLM_TEMPERATURE = float(os.getenv("VLM_TEMPERATURE", "0"))
+VLM_MAX_CONCURRENCY = int(os.getenv("VLM_MAX_CONCURRENCY", "4"))
+
+VLM_CHECK_PROMPTS = {
+    "background": {
+        "prompt": "Does the photograph have a plain, featureless, light and uniform background? Answer only Yes or No.",
+        "pass_if": "yes",
+    },
+    "eyes_open": {
+        "prompt": "Are both of the person's eyes open and clearly visible in the photograph? Answer only Yes or No.",
+        "pass_if": "yes",
+    },
+    "neutral_expression": {
+        "prompt": "Does the person have a neutral facial expression and is not smiling? Answer only Yes or No.",
+        "pass_if": "yes",
+    },
+    "headwear": {
+        "prompt": "Is the person wearing any head covering (such as a hat, headband, cap or hood)? Answer only Yes or No.",
+        "pass_if": "no",
+    },
+    "makeup": {
+        "prompt": "Is the person wearing heavy or conspicuous makeup that significantly alters their natural appearance? Answer only Yes or No.",
+        "pass_if": "no",
+    },
+    "sunglasses": {
+        "prompt": "Is the person wearing sunglasses or dark tinted lenses that obscure the eyes? Answer only Yes or No.",
+        "pass_if": "no",
+    },
 }
 
