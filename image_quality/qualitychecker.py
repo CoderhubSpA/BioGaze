@@ -9,18 +9,23 @@ class QualityChecker:
         return
 
     def is_out_of_focus(self, image_path):
-      image = cv2.imread(image_path)
-      gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-      val = np.max(cv2.convertScaleAbs(cv2.Laplacian(gray, 3)))
+        image = cv2.imread(image_path)
+        gray  = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        val   = np.max(cv2.convertScaleAbs(cv2.Laplacian(gray, 3)))
 
-      return 1 / (1 + np.exp((config.MINIMUM_FOCUS_THRESHOLD - val) / 255))
+        # Normalizar un poco el valor para evitar overflow y suavizar la sigmoide
+        x = (float(config.MINIMUM_FOCUS_THRESHOLD) - float(val)) / 255.0
+        x = np.clip(x, -20, 20)  # recorta valores extremos
+
+        score = 1.0 / (1.0 + np.exp(x))
+        return score
 
     def is_pixelated(self, image_path):
       image = cv2.imread(image_path)
       is_pixelated_diff = is_pixelated_difference_directional(image)
 
       return is_pixelated_diff
-    
+
     def is_posterized(self, image_path):
       image = cv2.imread(image_path)
       num_gaps = analyze_rgb_channels(image, gap_threshold=config.GAP_HISTOGRAM_THRESHOLD)
@@ -29,5 +34,5 @@ class QualityChecker:
 
       if num_gaps > config.MAX_GAPS_THRESHOLD:
           return True
-      
+
       return False
