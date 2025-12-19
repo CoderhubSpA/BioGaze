@@ -133,10 +133,6 @@ class BioGazeAdapter(IPhotoValidator):
             results["reasons"].append(f"No se pudo leer la información de la imagen: {str(e)}")
             return ValidationResult(**self._convert_numpy_types(results))
 
-        # Si falló la validación previa, retornamos inmediatamente
-        # if not results["compliant"]:
-        #     return ValidationResult(**self._convert_numpy_types(results))
-
         # 1. Detección de Rostro
         faces_detected, correct_exposure = self.detector.detector_analysis(image_path)
         results["details"]["face_detection"] = {
