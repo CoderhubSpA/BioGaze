@@ -7,6 +7,23 @@ load_dotenv()
 
 MAX_FACES = 1
 EARLY_STOP_ENABLED = os.getenv("EARLY_STOP_ENABLED", "false").lower() not in {"false", "0", "no"}
+MIN_WIDTH = int(os.getenv("MIN_WIDTH", "413"))
+MIN_HEIGHT = int(os.getenv("MIN_HEIGHT", "531"))
+ASPECT_RATIO_RAW = os.getenv("ASPECT_RATIO", "7:9")
+
+def _parse_aspect_ratio(raw: str) -> float:
+    try:
+        if ":" in raw:
+            num, denom = raw.split(":", 1)
+            return float(num) / float(denom)
+        return float(raw)
+    except Exception:
+        return 7.0 / 9.0
+
+ASPECT_RATIO = _parse_aspect_ratio(ASPECT_RATIO_RAW)
+ASPECT_RATIO_THRESHOLD = float(os.getenv("ASPECT_RATIO_THRESHOLD", "0.03"))
+SKIP_RESOLUTION_CHECK = os.getenv("SKIP_RESOLUTION_CHECK", "false").lower() in {"true", "1", "yes"}
+SKIP_RATIO_CHECK = os.getenv("SKIP_RATIO_CHECK", "false").lower() in {"true", "1", "yes"}
 
 '''
 HEADPOSE THRESHOLDS

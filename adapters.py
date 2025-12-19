@@ -95,38 +95,27 @@ class BioGazeAdapter(IPhotoValidator):
             "technical_metrics": {}
         }
 
-        # 0. Validación Previa: Dimensiones y Resolución (MINREL)
-        # Requerimiento: 35x45 mm a 300 DPI.
-        # Pixeles aprox: 413 x 531 px.
-        MIN_WIDTH = 413
-        MIN_HEIGHT = 531
-        MIN_DPI = 300
-
+        # 0. Validación Previa: Dimensiones y Relación de Aspecto
         try:
             with Image.open(image_path) as img:
                 width, height = img.size
-                dpi_info = img.info.get('dpi')
                 
-                # Chequeo de Dimensiones (Pixeles)
-                if width < MIN_WIDTH or height < MIN_HEIGHT:
-                    results["compliant"] = False
-                    results["reasons"].append(f"Dimensiones incorrectas (Debe ser de 35 x 45 mm)")
-                    early = maybe_early_return()
-                    if early:
-                        return early
-                
-                # Chequeo de DPI
-                if dpi_info:
-                    x_dpi, y_dpi = dpi_info
-                    if x_dpi < MIN_DPI or y_dpi < MIN_DPI:
+                if not config.SKIP_RESOLUTION_CHECK:
+                    if width < config.MIN_WIDTH or height < config.MIN_HEIGHT:
                         results["compliant"] = False
-                        results["reasons"].append(f"Baja resolución (Mínimo {MIN_DPI} DPI)")
+                        results["reasons"].append(f"Dimensiones incorrectas (mínimo {config.MIN_WIDTH}x{config.MIN_HEIGHT} px)")
                         early = maybe_early_return()
                         if early:
                             return early
-                else:
-                    # Por ahora, si cumple pixeles, asumimos que puede ser impreso a 300dpi.
-                    pass
+
+                if not config.SKIP_RATIO_CHECK:
+                    aspect_ratio = width / height if height else 0
+                    if abs(aspect_ratio - config.ASPECT_RATIO) > config.ASPECT_RATIO_THRESHOLD:
+                        results["compliant"] = False
+                        results["reasons"].append("Relación de aspecto incorrecta")
+                        early = maybe_early_return()
+                        if early:
+                            return early
 
         except Exception as e:
             results["compliant"] = False
