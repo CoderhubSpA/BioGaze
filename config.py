@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 MAX_FACES = 1
+EARLY_STOP_ENABLED = os.getenv("EARLY_STOP_ENABLED", "false").lower() not in {"false", "0", "no"}
 
 '''
 HEADPOSE THRESHOLDS
