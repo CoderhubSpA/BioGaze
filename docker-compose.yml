@@ -12,12 +12,12 @@ services:
         environment:
             # BioGaze
             BIOGAZE_API_KEY: ${BIOGAZE_API_KEY}
-            EARLY_STOP_ENABLED: ${BIOGAZE_EARLY_STOP_ENABLED}
-            MIN_WIDTH: ${BIOGAZE_MIN_WIDTH}
-            MIN_HEIGHT: ${BIOGAZE_MIN_HEIGHT}
-            ASPECT_RATIO: ${BIOGAZE_ASPECT_RATIO}
-            SKIP_RESOLUTION_CHECK: ${BIOGAZE_SKIP_RESOLUTION_CHECK}
-            SKIP_RATIO_CHECK: ${BIOGAZE_SKIP_RATIO_CHECK}
+            EARLY_STOP_ENABLED: ${EARLY_STOP_ENABLED}
+            MIN_WIDTH: ${MIN_WIDTH}
+            MIN_HEIGHT: ${MIN_HEIGHT}
+            ASPECT_RATIO: ${ASPECT_RATIO}
+            SKIP_RESOLUTION_CHECK: ${SKIP_RESOLUTION_CHECK}
+            SKIP_RATIO_CHECK: ${SKIP_RATIO_CHECK}
             # Database
             DB_CONNECTION: ${DB_CONNECTION}
             DB_HOST: ${DB_HOST}
