@@ -10,6 +10,14 @@ services:
                   count: all
                   capabilities: [gpu]
         environment:
+            # BioGaze
+            BIOGAZE_API_KEY: ${BIOGAZE_API_KEY}
+            EARLY_STOP_ENABLED: ${BIOGAZE_EARLY_STOP_ENABLED}
+            MIN_WIDTH: ${BIOGAZE_MIN_WIDTH}
+            MIN_HEIGHT: ${BIOGAZE_MIN_HEIGHT}
+            ASPECT_RATIO: ${BIOGAZE_ASPECT_RATIO}
+            SKIP_RESOLUTION_CHECK: ${BIOGAZE_SKIP_RESOLUTION_CHECK}
+            SKIP_RATIO_CHECK: ${BIOGAZE_SKIP_RATIO_CHECK}
             # Database
             DB_CONNECTION: ${DB_CONNECTION}
             DB_HOST: ${DB_HOST}
@@ -22,6 +30,11 @@ services:
             VLM_ENDPOINT: ${VLM_ENDPOINT}
             VLM_API_KEY: ${VLM_API_KEY}
             VLM_MODEL_NAME: ${VLM_MODEL_NAME}
+            VLM_REQUEST_TIMEOUT: ${VLM_REQUEST_TIMEOUT}
+            VLM_MAX_TOKENS: ${VLM_MAX_TOKENS}
+            VLM_TEMPERATURE: ${VLM_TEMPERATURE}
+            VLM_MAX_CONCURRENCY: ${VLM_MAX_CONCURRENCY}
+
         volumes:
             # Model checkpoints
             - ./dlib_checkpoint:/app/gaze_estimation/modules/dlib_checkpoint
