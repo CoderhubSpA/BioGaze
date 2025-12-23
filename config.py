@@ -29,14 +29,14 @@ SKIP_RATIO_CHECK = os.getenv("SKIP_RATIO_CHECK", "false").lower() in {"true", "1
 HEADPOSE THRESHOLDS
 '''
 
-MIN_YAW = -5
-MAX_YAW = 5
+MIN_YAW = -7
+MAX_YAW = 7
 
-MIN_PITCH = -5
-MAX_PITCH = 5
+MIN_PITCH = -7
+MAX_PITCH = 7
 
-MIN_ROLL = -8
-MAX_ROLL = 8
+MIN_ROLL = -10
+MAX_ROLL = 10
 
 
 '''
