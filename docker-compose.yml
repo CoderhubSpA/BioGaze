@@ -1,38 +1,43 @@
-version: '3.8'  
-  
-services:  
-  biogaze:  
-    build:  
-      context: .  
-      dockerfile: Dockerfile  
-    image: biogaze:latest  
-      
-    volumes:  
-      - ./:/app:cached
-      - /app/.venv
-      # Checkpoints - RUTA CORREGIDA  
-      - ./dlib_checkpoint:/app/dlib_checkpoint  
-      - ./dlib_checkpoint:/app/gaze_estimation/modules/dlib_checkpoint   
-      - ./face_parser/res/cp:/app/face_parser/res/cp  
-      - ./gaze_estimation/ckpt:/app/gaze_estimation/ckpt  
-      - ./input_images:/app/input_images:ro  
-      
-    environment:  
-      - PYTHONDONTWRITEBYTECODE=1  
-      - PYTHONUNBUFFERED=1  
-      - DB_HOST=${DB_HOST}
-      - DB_USER=${DB_USER}
-      - DB_PASS=${DB_PASS}
-      - DB_NAME=${DB_NAME}
-    
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-      
-    working_dir: /app
-    # command: python quality_analysis.py -i /app/input_images
-    # Exponer puerto para la API
-    ports:
-      - "8000:8000"
-    # Comando para iniciar la API en lugar del script de análisis
-    command: uvicorn api_service:app --host 0.0.0.0 --port 8000 --reload
-    restart: "no"
+services:
+    biogaze:
+        image: lucascoderhub/biogaze-api:latest
+        container_name: biogaze-api
+        deploy:
+          resources:
+            reservations:
+              devices:
+                - driver: nvidia
+                  count: all
+                  capabilities: [gpu]
+        environment:
+            # Database
+            DB_CONNECTION: ${DB_CONNECTION}
+            DB_HOST: ${DB_HOST}
+            DB_PORT: ${DB_PORT}
+            DB_DATABASE: ${DB_DATABASE}
+            DB_USERNAME: ${DB_USERNAME}
+            DB_PASSWORD: ${DB_PASSWORD}
+            # VLM
+            VLM_ENABLED: ${VLM_ENABLED}
+            VLM_ENDPOINT: ${VLM_ENDPOINT}
+            VLM_API_KEY: ${VLM_API_KEY}
+            VLM_MODEL_NAME: ${VLM_MODEL_NAME}
+        volumes:
+            # Model checkpoints
+            - ./dlib_checkpoint:/app/gaze_estimation/modules/dlib_checkpoint
+            - ./face_parser_cp:/app/face_parser/res/cp
+            - ./gaze_estimation_cp:/app/gaze_estimation/ckpt
+            - ./detectors_yolo:/app/detectors/models
+            # Inputs/Outputs
+            - ./input_images:/app/input_images:ro
+            - ./temp_uploads:/app/temp_uploads
+            - ./audit_storage:/app/audit_storage
+        networks:
+            - vllm-net
+        ports:
+            - "${BIOGAZE_PORT}:8000"
+        extra_hosts:
+          - "host.docker.internal:host-gateway"
+networks:
+    vllm-net:
+        external: true
