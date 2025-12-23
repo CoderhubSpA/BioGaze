@@ -1,17 +1,17 @@
-
 FROM python:3.10-slim
 
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV UV_COMPILE_BYTECODE=1
+# Variables de entorno
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_COMPILE_BYTECODE=1
 
 WORKDIR /app
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends \
+# Instalar dependencias del sistema necesarias para OpenCV, dlib, PyTorch, etc.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     git \
@@ -24,26 +24,36 @@ RUN apt-get update \
     libjpeg-dev \
     libpng-dev \
     libgl1 \
-   pkg-config \
-   libopenblas-dev \
-   liblapack-dev \
- && rm -rf /var/lib/apt/lists/*
+    pkg-config \
+    libopenblas-dev \
+    liblapack-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files
+# Copiar archivos de dependencias
 COPY pyproject.toml uv.lock /app/
 
-# Install dependencies
-# --frozen: sync from lock file
-# --no-install-project: don't install the current project (we just want deps first)
+# Instalar dependencias usando uv
+# --frozen: usa el lock file sin actualizarlo
+# --no-install-project: solo instala dependencias, no el proyecto
 RUN uv sync --frozen --no-install-project --no-cache
 
-# Add .venv to PATH
+# Agregar .venv al PATH
 ENV PATH="/app/.venv/bin:$PATH"
 
-COPY . /app
+# Copiar el código fuente completo
+COPY . .
 
-RUN useradd --create-home --shell /bin/bash appuser \
- && chown -R appuser:appuser /app
+# Crear directorios necesarios para la aplicación
+RUN mkdir -p temp_uploads audit_storage
+
+# Crear usuario no-root y asignar permisos
+RUN useradd --create-home --shell /bin/bash appuser && \
+    chown -R appuser:appuser /app
+
 USER appuser
 
-CMD ["bash"]
+# Exponer puerto de la API
+EXPOSE 8000
+
+# Comando por defecto: iniciar API
+CMD ["/app/.venv/bin/uvicorn", "api_service:app", "--host", "0.0.0.0", "--port", "8000"]

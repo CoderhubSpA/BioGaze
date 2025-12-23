@@ -1,38 +1,62 @@
-version: '3.8'  
-  
-services:  
-  biogaze:  
-    build:  
-      context: .  
-      dockerfile: Dockerfile  
-    image: biogaze:latest  
-      
-    volumes:  
+services:
+  biogaze:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: biogaze:latest
+    container_name: biogaze-api
+
+    volumes:
+      # Código fuente (cached para mejor performance en desarrollo)
       - ./:/app:cached
+      # Excluir .venv y __pycache__ para evitar conflictos
       - /app/.venv
-      # Checkpoints - RUTA CORREGIDA  
-      - ./dlib_checkpoint:/app/dlib_checkpoint  
-      - ./dlib_checkpoint:/app/gaze_estimation/modules/dlib_checkpoint   
-      - ./face_parser/res/cp:/app/face_parser/res/cp  
-      - ./gaze_estimation/ckpt:/app/gaze_estimation/ckpt  
-      - ./input_images:/app/input_images:ro  
-      
-    environment:  
-      - PYTHONDONTWRITEBYTECODE=1  
-      - PYTHONUNBUFFERED=1  
-      - DB_HOST=${DB_HOST}
-      - DB_USER=${DB_USER}
-      - DB_PASS=${DB_PASS}
-      - DB_NAME=${DB_NAME}
-    
+      - /app/__pycache__
+      # Checkpoints y modelos pre-entrenados
+      - ./dlib_checkpoint:/app/dlib_checkpoint
+      - ./dlib_checkpoint:/app/gaze_estimation/modules/dlib_checkpoint
+      - ./face_parser/res/cp:/app/face_parser/res/cp
+      - ./gaze_estimation/ckpt:/app/gaze_estimation/ckpt
+      - ./detectors/models:/app/detectors/models
+      # Directorio de entrada (read-only)
+      - ./input_images:/app/input_images:ro
+      # Directorios de salida (persistentes)
+      - ./temp_uploads:/app/temp_uploads
+      - ./audit_storage:/app/audit_storage
+
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      # Base de datos
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-root}
+      - DB_PASS=${DB_PASS:-}
+      - DB_NAME=${DB_NAME:-minrel03_sac}
+      # API Key
+      - BIOGAZE_API_KEY=${BIOGAZE_API_KEY:-minrel-biogaze-secret-key-2025}
+      # VLM Configuration (opcional)
+      - VLM_ENABLED=${VLM_ENABLED:-false}
+      - VLM_API_KEY=${VLM_API_KEY:-}
+      - VLM_ENDPOINT=${VLM_ENDPOINT:-}
+      - VLM_MODEL_NAME=${VLM_MODEL_NAME:-}
+
     extra_hosts:
       - "host.docker.internal:host-gateway"
-      
-    working_dir: /app
-    # command: python quality_analysis.py -i /app/input_images
-    # Exponer puerto para la API
+
     ports:
       - "8000:8000"
-    # Comando para iniciar la API en lugar del script de análisis
-    command: uvicorn api_service:app --host 0.0.0.0 --port 8000 --reload
-    restart: "no"
+
+    # Usar --reload solo en desarrollo para hot-reloading
+    command: /app/.venv/bin/uvicorn api_service:app --host 0.0.0.0 --port 8000 --reload
+
+    restart: unless-stopped
+
+    # Descomentar para habilitar GPU (requiere NVIDIA Container Toolkit)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
