@@ -4,7 +4,7 @@
 
 ## 🌟 Características principales
 
-- **Python 3.10-slim** como base para compatibilidad y ligereza.
+- **Python 3.12-slim** como base para compatibilidad y ligereza.
 - Soporte para librerías científicas (PyTorch, Ultralytics/YOLO, dlib, OpenCV, mediapipe, pandas, etc.).
 - Modelos checkpoint y archivos grandes NO incluidos en la imagen: deben estar en rutas locales bien definidas.
 - Carpeta de entrada y salida fáciles de mapear con volúmenes.

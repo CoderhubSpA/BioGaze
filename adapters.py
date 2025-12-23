@@ -82,6 +82,11 @@ class BioGazeAdapter(IPhotoValidator):
         return vlm_checks
 
     def validate(self, image_path: str) -> ValidationResult:
+        def maybe_early_return():
+            if config.EARLY_STOP_ENABLED and not results["compliant"]:
+                return ValidationResult(**self._convert_numpy_types(results))
+            return None
+
         # --- Lógica original de BioGaze (Adaptada y Traducida) ---
         results = {
             "compliant": True,
@@ -90,41 +95,32 @@ class BioGazeAdapter(IPhotoValidator):
             "technical_metrics": {}
         }
 
-        # 0. Validación Previa: Dimensiones y Resolución (MINREL)
-        # Requerimiento: 35x45 mm a 300 DPI.
-        # Pixeles aprox: 413 x 531 px.
-        MIN_WIDTH = 413
-        MIN_HEIGHT = 531
-        MIN_DPI = 300
-
+        # 0. Validación Previa: Dimensiones y Relación de Aspecto
         try:
             with Image.open(image_path) as img:
                 width, height = img.size
-                dpi_info = img.info.get('dpi')
                 
-                # Chequeo de Dimensiones (Pixeles)
-                if width < MIN_WIDTH or height < MIN_HEIGHT:
-                    results["compliant"] = False
-                    results["reasons"].append(f"Dimensiones incorrectas (Debe ser de 35 x 45 mm)")
-                
-                # Chequeo de DPI
-                if dpi_info:
-                    x_dpi, y_dpi = dpi_info
-                    if x_dpi < MIN_DPI or y_dpi < MIN_DPI:
+                if not config.SKIP_RESOLUTION_CHECK:
+                    if width < config.MIN_WIDTH or height < config.MIN_HEIGHT:
                         results["compliant"] = False
-                        results["reasons"].append(f"Baja resolución (Mínimo {MIN_DPI} DPI)")
-                else:
-                    # Por ahora, si cumple pixeles, asumimos que puede ser impreso a 300dpi.
-                    pass
+                        results["reasons"].append(f"Dimensiones incorrectas (mínimo {config.MIN_WIDTH}x{config.MIN_HEIGHT} px)")
+                        early = maybe_early_return()
+                        if early:
+                            return early
+
+                if not config.SKIP_RATIO_CHECK:
+                    aspect_ratio = width / height if height else 0
+                    if abs(aspect_ratio - config.ASPECT_RATIO) > config.ASPECT_RATIO_THRESHOLD:
+                        results["compliant"] = False
+                        results["reasons"].append("Relación de aspecto incorrecta")
+                        early = maybe_early_return()
+                        if early:
+                            return early
 
         except Exception as e:
             results["compliant"] = False
             results["reasons"].append(f"No se pudo leer la información de la imagen: {str(e)}")
             return ValidationResult(**self._convert_numpy_types(results))
-
-        # Si falló la validación previa, retornamos inmediatamente
-        # if not results["compliant"]:
-        #     return ValidationResult(**self._convert_numpy_types(results))
 
         # 1. Detección de Rostro
         faces_detected, correct_exposure = self.detector.detector_analysis(image_path)
@@ -157,6 +153,9 @@ class BioGazeAdapter(IPhotoValidator):
                 if not (0.60 <= face_ratio <= 0.85):
                     results["compliant"] = False
                     results["reasons"].append(f"El rostro no ocupa el tamaño adecuado (se requiere que ocupe el 70-80%)")
+                    early = maybe_early_return()
+                    if early:
+                        return early
                 
                 # Centrado Horizontal
                 img_center_x = img_width / 2
@@ -166,10 +165,16 @@ class BioGazeAdapter(IPhotoValidator):
                 if offset_x > max_offset:
                     results["compliant"] = False
                     results["reasons"].append("El rostro no está centrado horizontalmente")
+                    early = maybe_early_return()
+                    if early:
+                        return early
 
         if not correct_exposure:
             results["compliant"] = False
             results["reasons"].append("Exposición incorrecta (muy clara o muy oscura)")
+            early = maybe_early_return()
+            if early:
+                return early
         results["details"]["exposure"] = {"passed": bool(correct_exposure)}
 
         vlm_checks = self._build_vlm_checks(image_path)
@@ -195,16 +200,25 @@ class BioGazeAdapter(IPhotoValidator):
             results["compliant"] = False
             results["reasons"].append(f"Rostro rotado horizontalmente (mire de frente)")
             frontal_pose = False
+            early = maybe_early_return()
+            if early:
+                return early
         
         if not (config.MIN_PITCH <= pitch <= config.MAX_PITCH):
             results["compliant"] = False
             results["reasons"].append(f"Rostro inclinado verticalmente (levante o baje la cabeza)")
             frontal_pose = False
+            early = maybe_early_return()
+            if early:
+                return early
 
         if not (config.MIN_ROLL <= roll <= config.MAX_ROLL):
             results["compliant"] = False
             results["reasons"].append(f"Rostro inclinado lateralmente (enderece la cabeza)")
             frontal_pose = False
+            early = maybe_early_return()
+            if early:
+                return early
             
         results["details"]["pose"] = {"passed": bool(frontal_pose)}
 
@@ -230,6 +244,9 @@ class BioGazeAdapter(IPhotoValidator):
                 results["reasons"].append("Se detectó sombrero o cubierta en la cabeza")
             else:
                 results["reasons"].append("No se pudo validar la ausencia de cubierta en la cabeza con el modelo VLM")
+            early = maybe_early_return()
+            if early:
+                return early
 
         if not background_pass:
             results["compliant"] = False
@@ -237,6 +254,9 @@ class BioGazeAdapter(IPhotoValidator):
                 results["reasons"].append("El fondo no es homogéneo (debe ser uniforme, claro y sin objetos)")
             else:
                 results["reasons"].append("No se pudo validar el fondo con el modelo VLM")
+            early = maybe_early_return()
+            if early:
+                return early
 
         if not vlm_pass("sunglasses"):
             results["compliant"] = False
@@ -244,18 +264,30 @@ class BioGazeAdapter(IPhotoValidator):
                 results["reasons"].append("Se detectaron lentes oscuros/lentes de sol")
             else:
                 results["reasons"].append("No se pudo validar la ausencia de lentes oscuros con el modelo VLM")
+            early = maybe_early_return()
+            if early:
+                return early
             
         if not shoulder_check:
              results["compliant"] = False
              results["reasons"].append("Hombros no alineados o no visibles correctamente")
+             early = maybe_early_return()
+             if early:
+                 return early
 
         if not uniform_illumination:
              results["compliant"] = False
              results["reasons"].append("Iluminación del rostro no uniforme (sombras)")
+             early = maybe_early_return()
+             if early:
+                 return early
              
         if not color_saturation:
              results["compliant"] = False
              results["reasons"].append("Saturación de color incorrecta")
+             early = maybe_early_return()
+             if early:
+                 return early
 
         if not vlm_pass("eyes_open"):
             results["compliant"] = False
@@ -263,6 +295,9 @@ class BioGazeAdapter(IPhotoValidator):
                 results["reasons"].append("Ojos cerrados o parcialmente cerrados")
             else:
                 results["reasons"].append("No se pudo validar apertura de ojos con el modelo VLM")
+            early = maybe_early_return()
+            if early:
+                return early
 
         if not vlm_pass("neutral_expression"):
             results["compliant"] = False
@@ -270,6 +305,9 @@ class BioGazeAdapter(IPhotoValidator):
                 results["reasons"].append("Expresión facial no neutral (sonrisa, gesto, etc.)")
             else:
                 results["reasons"].append("No se pudo validar la expresión facial con el modelo VLM")
+            early = maybe_early_return()
+            if early:
+                return early
 
         if not vlm_pass("makeup"):
             results["compliant"] = False
@@ -277,6 +315,9 @@ class BioGazeAdapter(IPhotoValidator):
                 results["reasons"].append("Maquillaje excesivo detectado")
             else:
                 results["reasons"].append("No se pudo validar la ausencia de maquillaje excesivo con el modelo VLM")
+            early = maybe_early_return()
+            if early:
+                return early
 
         # 4. Puntos de Referencia (Landmarks)
         land_res = self.landmark_recognizer.landmark_analysis(image_path)
@@ -294,10 +335,16 @@ class BioGazeAdapter(IPhotoValidator):
         if mouth_open_val < config.MOUTH_THRESHOLD:
              results["compliant"] = False
              results["reasons"].append("Boca abierta detectada")
+             early = maybe_early_return()
+             if early:
+                 return early
 
         if not uniform_luminosity:
              results["compliant"] = False
              results["reasons"].append("Luminosidad no uniforme en el rostro")
+             early = maybe_early_return()
+             if early:
+                 return early
 
 
         # 6. Mirada (Gaze)
@@ -306,6 +353,9 @@ class BioGazeAdapter(IPhotoValidator):
         if not gaze_in_camera:
             results["compliant"] = False
             results["reasons"].append("Mirada no dirigida a la cámara")
+            early = maybe_early_return()
+            if early:
+                return early
 
         # 7. Calidad de Imagen
         # NOTA: Las funciones devuelven un SCORE de calidad (0.0 = Malo, 1.0 = Bueno)
@@ -330,10 +380,16 @@ class BioGazeAdapter(IPhotoValidator):
         if quality_posterization_score < MIN_QUALITY_SCORE:
             results["compliant"] = False
             results["reasons"].append("Efecto de posterización detectado (baja calidad de color)")
+            early = maybe_early_return()
+            if early:
+                return early
         
         if quality_focus_score < MIN_QUALITY_SCORE:
             results["compliant"] = False
             results["reasons"].append("Imagen desenfocada")
+            early = maybe_early_return()
+            if early:
+                return early
 
         # Retornamos el objeto estandarizado
         return ValidationResult(**self._convert_numpy_types(results))

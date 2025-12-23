@@ -72,7 +72,7 @@ Además, las imágenes procesadas se almacenan temporalmente en carpetas de audi
 
 ## 5. Arquitectura de Software
 El servicio está construido sobre:
-- **Lenguaje:** Python 3.10+
+- **Lenguaje:** Python 3.12+
 - **Framework Web:** FastAPI
 - **Motor IA:** BioGaze (YOLOv8, Dlib, OpenCV, MediaPipe)
 - **Contenedor:** Docker
