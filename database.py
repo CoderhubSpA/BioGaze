@@ -7,31 +7,30 @@ logger = logging.getLogger("BioGazeDB")
 logger.setLevel(logging.INFO)
 
 # --- Configuración de Base de Datos (SHEETS / CHDEV) ---
-# try:
-#     from chlib import chutil
-#     # from chlib.DatabaseConnection import DatabaseConnection # No lo usamos directamente para mantener compatibilidad con SQLAlchemy
+try:
+    from chlib import chutil
+    # from chlib.DatabaseConnection import DatabaseConnection # No lo usamos directamente para mantener compatibilidad con SQLAlchemy
 
-#     # Cargar configuración del entorno Sheets
-#     conf = chutil.loadConfigFile()
+    # Cargar configuración del entorno Sheets
+    conf = chutil.loadConfigFile()
     
-#     DB_USER = conf.get("DB_USERNAME")
-#     DB_PASS = conf.get("DB_PASSWORD")
-#     DB_HOST = conf.get("DB_HOST")
-#     DB_PORT = conf.get("DB_PORT")
-#     DB_NAME = conf.get("DB_DATABASE")
+    DB_USER = conf.get("DB_USERNAME")
+    DB_PASS = conf.get("DB_PASSWORD")
+    DB_HOST = conf.get("DB_HOST")
+    DB_PORT = conf.get("DB_PORT")
+    DB_NAME = conf.get("DB_DATABASE")
     
-#     print(f"[DB] Usando configuración de Sheets/CHDev: {DB_HOST}:{DB_PORT}/{DB_NAME}")
+    print(f"[DB] Usando configuración de Sheets/CHDev: {DB_HOST}:{DB_PORT}/{DB_NAME}")
 
-# except ImportError:
-#     # Fallback o Error si no estamos en el entorno correcto
-#     print("[DB] Advertencia: 'chlib' no encontrado. Usando configuración por defecto (puede fallar si no es local).")
-#     # Valores dummy o locales si se desea probar sin chlib
-#     DB_HOST = os.environ.get("DB_HOST", "host.docker.internal")
-#     DB_PORT = os.environ.get("DB_PORT", "3306")
-#     DB_USER = os.environ.get("DB_USER", "root")
-#     DB_PASS = os.environ.get("DB_PASS", "")
-#     DB_NAME = os.environ.get("DB_NAME", "minrel03_sac")
-
+except ImportError:
+    # Fallback o Error si no estamos en el entorno correcto
+    print("[DB] Advertencia: 'chlib' no encontrado. Usando configuración por defecto (puede fallar si no es local).")
+    # Valores dummy o locales si se desea probar sin chlib
+    DB_HOST = os.environ.get("DB_HOST", "host.docker.internal")
+    DB_PORT = os.environ.get("DB_PORT", "3306")
+    DB_USER = os.environ.get("DB_USER", "root")
+    DB_PASS = os.environ.get("DB_PASS", "")
+    DB_NAME = os.environ.get("DB_NAME", "minrel03_sac")
 # --- Configuración de Base de Datos (LOCAL - COMENTADO) ---
 DB_HOST = os.environ.get("DB_HOST", "127.0.0.1") 
 DB_PORT = os.environ.get("DB_PORT", "3306")
