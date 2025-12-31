@@ -1,6 +1,9 @@
 services:
     biogaze:
-        image: lucascoderhub/biogaze-api:latest
+        build:
+            context: .
+            dockerfile: Dockerfile
+        image: lucascoderhub/biogaze-api:test
         container_name: biogaze-api
         deploy:
           resources:
