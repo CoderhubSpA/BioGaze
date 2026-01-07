@@ -113,8 +113,8 @@ computer_vision:
   minimum_focus_score: 0.3
   
   # Posterization
-  max_gaps_threshold: 417
-  gap_histogram_threshold: 0.001
+  max_gaps_threshold: 600
+  gap_histogram_threshold: 0.005
 
 # =============================================================================
 # LANDMARK THRESHOLDS
