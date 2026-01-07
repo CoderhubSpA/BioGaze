@@ -3,10 +3,11 @@ import time
 import logging
 import shutil
 import uuid
+import asyncio
 from typing import List, Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Security, Depends
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Security, Depends, BackgroundTasks
 from fastapi.security.api_key import APIKeyHeader
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -18,6 +19,7 @@ load_dotenv()  # Cargar variables de entorno ANTES de importar módulos que usen
 from interfaces import IPhotoValidator, ValidationResult
 from adapters import BioGazeAdapter
 from db_repository import save_validation_result
+from s3_storage import S3StorageManager, s3_manager
 
 # --- Configuración ---
 UPLOAD_DIR = "temp_uploads"
@@ -64,7 +66,7 @@ async def lifespan(app: FastAPI):
     Aquí es donde decidimos QUÉ motor usar. Si mañana cambiamos a AWS,
     solo cambiamos la línea `validator_engine = AwsAdapter()`.
     """
-    global validator_engine
+    global validator_engine, s3_manager
     # logger.info("Iniciando API de Validación...")
     
     # Asegurar que existan los directorios
@@ -76,9 +78,13 @@ async def lifespan(app: FastAPI):
         validator_engine = BioGazeAdapter()
         validator_engine.load_models()
         # logger.info("Motor de Validación inicializado correctamente.")
+        
+        # Inicializar gestor de S3
+        s3_manager = S3StorageManager()
+            
     except Exception as e:
-        logger.error(f"Fallo al inicializar el Motor de Validación: {e}")
-        raise RuntimeError("No se pudieron inicializar los modelos de IA") from e
+        logger.error(f"Fallo al inicializar el Motor de Validación o S3: {e}")
+        raise RuntimeError("No se pudieron inicializar los modelos de IA o S3") from e
     
     yield
     
@@ -109,14 +115,66 @@ class APIResponse(BaseModel):
 
 # --- Endpoints ---
 
+async def store_photo_and_save_to_db(temp_path: str, original_filename: str, new_filename: str, validation_result: dict, request_id: str):
+    """
+    Tarea asíncrona en segundo plano para subir a S3 y guardar en BD.
+    Esta función se ejecuta de forma independiente y no bloquea la respuesta de la API.
+    
+    Args:
+        temp_path (str): Ruta temporal del archivo
+        original_filename (str): Nombre original del archivo
+        new_filename (str): Nombre UUID del archivo (ej: uuid.jpg)
+        validation_result (dict): Resultado de la validación
+        request_id (str): ID de la solicitud para logging
+    """
+    try:
+        # 1. Subir a S3
+        if s3_manager is None:
+            logger.error(f"S3Manager no inicializado para ID {request_id}")
+            return
+        
+        # Determinar tipo MIME
+        file_ext = os.path.splitext(new_filename)[1].lower()
+        content_type = "image/jpeg" if file_ext in [".jpg", ".jpeg"] else "image/png"
+        
+        # Ruta en S3: minrel03_sac/fotografias/uuid.jpg
+        s3_key = f"minrel03_sac/fotografias/{new_filename}"
+        
+        # Subir a S3
+        s3_url = await s3_manager.upload_file_async(temp_path, s3_key, content_type)
+        
+        if s3_url:
+            # logger.info(f"Imagen subida a S3 para ID {request_id}: {s3_url}")
+            
+            # 2. Guardar en BD con la URL de S3
+            await save_validation_result(temp_path, original_filename, validation_result, s3_url, new_filename)
+            logger.info(f"Validación guardada en BD para ID {request_id}")
+        else:
+            logger.error(f"No se pudo subir imagen a S3 para ID {request_id}")
+            
+    except Exception as e:
+        logger.error(f"Error en tarea asíncrona para ID {request_id}: {str(e)}")
+    finally:
+        # Limpieza de archivo temporal
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+
+
 @app.post("/api/v1/validar-foto", response_model=APIResponse, tags=["Validación"], summary="Validar Fotografía")
 async def validate_photo(
     file: UploadFile = File(..., description="Archivo de imagen (JPEG/PNG)"),
+    background_tasks: BackgroundTasks = None,
     api_key: str = Depends(get_api_key)
 ):
     """
     Endpoint principal. Recibe la imagen y delega la validación al motor configurado.
     Retorna la respuesta del estado de validación y los motivos de rechazo.
+    
+    IMPORTANTE: La validación de la foto se procesa de forma síncrona para dar respuesta inmediata.
+    El guardado en S3 y BD se ejecuta en segundo plano de forma asíncrona.
     """
     request_id = str(uuid.uuid4())
     start_time = time.time()
@@ -128,24 +186,24 @@ async def validate_photo(
         logger.warning(f"Tipo de contenido inválido: {file.content_type} para ID: {request_id}")
         raise HTTPException(status_code=415, detail="Tipo de medio no soportado. Solo se permiten JPG/PNG.")
 
-    # 2. Guardar Archivo Temporalmente
+    # 2. Generar nombre UUID para el archivo (evita conflictos y sobrescrituras)
     file_ext = os.path.splitext(file.filename)[1]
-    temp_filename = f"{request_id}{file_ext}"
-    temp_path = os.path.join(UPLOAD_DIR, temp_filename)
+    new_filename = f"{request_id}{file_ext}"  # UUID + extensión original
+    temp_path = os.path.join(UPLOAD_DIR, new_filename)
 
     try:
+        # 3. Guardar Archivo Temporalmente
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # 3. Procesar Imagen usando la Interfaz
+        # 4. Procesar Imagen usando la Interfaz (PROCESO SÍNCRONO - RESPUESTA RÁPIDA)
         if validator_engine is None:
              raise HTTPException(status_code=500, detail="Motor de Validación no inicializado")
 
         # LLAMADA AGNÓSTICA: No sabemos si es BioGaze o AWS, solo llamamos a .validate()
         result: ValidationResult = validator_engine.validate(temp_path)
         
-        # 4. Construir Respuesta
-        # Traducimos el estado a Español
+        # 5. Construir Respuesta (SE RETORNA DE INMEDIATO)
         estado_str = "ACEPTADO" if result.compliant else "RECHAZADO"
         
         response_data = {
@@ -154,44 +212,40 @@ async def validate_photo(
             "motivos_rechazo": result.reasons
         }
 
-        # 5. Almacenamiento de Auditoría (DESACTIVADO: Se guarda en BD)
-        # today_str = datetime.now().strftime("%Y-%m-%d")
-        # audit_folder = os.path.join(AUDIT_DIR, today_str, estado_str)
-        # os.makedirs(audit_folder, exist_ok=True)
+        # 6. Preparar datos para guardado asíncrono
+        db_validation_result = {
+            "compliant": result.compliant,
+            "reasons": result.reasons
+        }
         
-        # final_path = os.path.join(audit_folder, temp_filename)
-        # shutil.move(temp_path, final_path)
-        
-        # logger.info(f"Imagen almacenada para auditoría en: {final_path}")
+        # 7. TAREA EN SEGUNDO PLANO (NO BLOQUEA LA RESPUESTA)
+        # Esto se ejecuta de forma asíncrona después de retornar la respuesta
+        asyncio.create_task(
+            store_photo_and_save_to_db(
+                temp_path, 
+                file.filename, 
+                new_filename, 
+                db_validation_result, 
+                request_id
+            )
+        )
 
-        # 5.1. Guardar en Base de Datos
-        try:
-            db_validation_result = {
-                "compliant": result.compliant,
-                "reasons": result.reasons
-            }
-            # Usamos temp_path ya que no movemos el archivo a audit_storage
-            save_validation_result(temp_path, file.filename, db_validation_result)
-        except Exception as db_error:
-            logger.error(f"Error guardando en BD para ID {request_id}: {db_error}")
-            # No interrumpimos el flujo principal si falla la BD
-
-        # 6. Registrar Resultado
+        # 8. Registrar tiempo de procesamiento (solo validación, no guardado)
         processing_time = time.time() - start_time
         logger.info(f"Procesado ID: {request_id} | Estado: {estado_str} | Tiempo: {processing_time:.2f}s")
         
+        # RETORNAR RESPUESTA INMEDIATAMENTE
         return response_data
 
     except Exception as e:
         logger.error(f"Error procesando ID: {request_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error Interno del Servidor: {str(e)}")
-    finally:
-        # Limpieza de archivo temporal
+        # Si hay error, limpiamos el archivo temporal
         if os.path.exists(temp_path):
             try:
                 os.remove(temp_path)
-            except Exception as cleanup_error:
-                logger.warning(f"No se pudo eliminar archivo temporal {temp_path}: {cleanup_error}")
+            except:
+                pass
+        raise HTTPException(status_code=500, detail=f"Error Interno del Servidor: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
