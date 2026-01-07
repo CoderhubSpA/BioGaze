@@ -39,6 +39,8 @@ services:
             VLM_MAX_CONCURRENCY: ${VLM_MAX_CONCURRENCY}
 
         volumes:
+            # Configuration files
+            - ./checks_config.yaml:/app/checks_config.yaml:ro
             # Model checkpoints
             - ./dlib_checkpoint:/app/gaze_estimation/modules/dlib_checkpoint
             - ./face_parser_cp:/app/face_parser/res/cp
