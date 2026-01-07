@@ -27,12 +27,16 @@ async def save_validation_result(file_path: str, original_filename: str, validat
     document_id = str(uuid.uuid4())
     validation_id = str(uuid.uuid4())
     
-    # Generamos un hash único para el archivo (útil para integridad)
-    # Ejecutar lectura de archivo en executor para no bloquear
+    # Leer contenido del archivo de forma asíncrona (no bloquear event loop)
     loop = asyncio.get_event_loop()
     file_content = await loop.run_in_executor(None, lambda: open(file_path, "rb").read())
-    unique_hash = hashlib.md5(file_content).hexdigest()
     file_size = len(file_content)
+    
+    # Generar unique_hash combinando el nombre UUID del archivo (new_filename) + contenido
+    # Esto asegura que cada validación genere un hash único, incluso si es la misma imagen
+    # Permite pruebas con la misma imagen sin violar la constraint unique_hash_version de BD
+    hash_input = new_filename.encode('utf-8') + file_content
+    unique_hash = hashlib.md5(hash_input).hexdigest()
     
     # Extraemos extensión del nuevo nombre
     _, extension = os.path.splitext(new_filename)
