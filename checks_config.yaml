@@ -8,8 +8,8 @@
 headpose:
   min_yaw: -7
   max_yaw: 7
-  min_pitch: -7
-  max_pitch: 7
+  min_pitch: -15  # de -7 → -15 (más permisivo hacia abajo)
+  max_pitch: 15   # de 7 → 15 (más permisivo hacia arriba)
   min_roll: -10
   max_roll: 10
 
@@ -57,7 +57,7 @@ face_dimensions:
 exposure:
   # Dark exposure thresholds (valores más altos = más permisivo)
   avg_dark_threshold: 0.015  # de 0.0055 → 0.015 (más permisivo con oscuridad)
-  max_dark_threshold: 0.035  # de 0.015 → 0.035 (más permisivo con áreas oscuras)
+  max_dark_threshold: 0.035  # de 0.015 → 0.035 (más permisivo con áreas oscuras)S
   
   # Light exposure thresholds (valores más altos = más permisivo)
   avg_light_threshold: 0.010  # de 0.0035 → 0.010 (más permisivo con brillo)
