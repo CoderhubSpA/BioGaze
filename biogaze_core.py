@@ -265,7 +265,9 @@ class BioGazeEngine:
             results["reasons"].append("Gaze not directed at camera")
 
            # 7. Image Quality
-is_posterized = self.quality_checker.is_posterized(image_path)
+# POSTERIZATION CHECK - COMMENTED OUT
+# is_posterized = self.quality_checker.is_posterized(image_path)
+is_posterized = False  # Disabled posterization check
 is_pixelated = self.quality_checker.is_pixelated(image_path)
 focus_score = self.quality_checker.is_out_of_focus(image_path)
 
@@ -280,9 +282,10 @@ results["details"]["quality"] = {
     "focus_score": float(focus_score),
 }
 
-if is_posterized:
-    results["compliant"] = False
-    results["reasons"].append("Posterization detected")
+# POSTERIZATION VALIDATION - COMMENTED OUT
+# if is_posterized:
+#     results["compliant"] = False
+#     results["reasons"].append("Posterization detected")
 
 if is_pixelated:
     results["compliant"] = False
