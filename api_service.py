@@ -79,12 +79,18 @@ async def lifespan(app: FastAPI):
         validator_engine.load_models()
         # logger.info("Motor de Validación inicializado correctamente.")
         
-        # Inicializar gestor de S3
-        s3_manager = S3StorageManager()
+        # Inicializar gestor de S3 (solo si está habilitado)
+        s3_enabled = os.getenv("S3_ENABLED", "true").lower() in {"true", "1", "yes"}
+        if s3_enabled:
+            s3_manager = S3StorageManager()
+            logger.info("S3 storage habilitado")
+        else:
+            s3_manager = None
+            logger.info("S3 storage deshabilitado - solo almacenamiento local")
             
     except Exception as e:
-        logger.error(f"Fallo al inicializar el Motor de Validación o S3: {e}")
-        raise RuntimeError("No se pudieron inicializar los modelos de IA o S3") from e
+        logger.error(f"Fallo al inicializar el Motor de Validación: {e}")
+        raise RuntimeError("No se pudieron inicializar los modelos de IA") from e
     
     yield
     
