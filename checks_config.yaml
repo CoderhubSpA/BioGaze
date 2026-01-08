@@ -25,8 +25,8 @@ facial_features:
 # =============================================================================
 face_dimensions:
   # Face size ratio (percentage of image height the face should occupy)
-  min_face_size_ratio: 0.60  # 60%
-  max_face_size_ratio: 0.85  # 85%
+  min_face_size_ratio: 0.50  # (acepta rostros más pequeños)
+  max_face_size_ratio: 0.95  # (acepta rostros más grandes)
   
   # Face width to height ratio
   min_width_height_ratio: 0.74
@@ -55,13 +55,13 @@ face_dimensions:
 # EXPOSURE CONSTANTS
 # =============================================================================
 exposure:
-  # Dark exposure thresholds
-  avg_dark_threshold: 0.0055
-  max_dark_threshold: 0.015
+  # Dark exposure thresholds (valores más altos = más permisivo)
+  avg_dark_threshold: 0.015  # de 0.0055 → 0.015 (más permisivo con oscuridad)
+  max_dark_threshold: 0.035  # de 0.015 → 0.035 (más permisivo con áreas oscuras)
   
-  # Light exposure thresholds
-  avg_light_threshold: 0.0035
-  max_light_threshold: 0.015
+  # Light exposure thresholds (valores más altos = más permisivo)
+  avg_light_threshold: 0.010  # de 0.0035 → 0.010 (más permisivo con brillo)
+  max_light_threshold: 0.035  # de 0.015 → 0.035 (más permisivo con áreas claras)
 
 # =============================================================================
 # PIXELATION THRESHOLDS

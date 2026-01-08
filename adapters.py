@@ -378,13 +378,13 @@ class BioGazeAdapter(IPhotoValidator):
             "focus_score": float(quality_focus_score)
         }
 
-        
-        if quality_posterization_score < MIN_QUALITY_SCORE:
-            results["compliant"] = False
-            results["reasons"].append("Efecto de posterización detectado (baja calidad de color)")
-            early = maybe_early_return()
-            if early:
-                return early
+        # POSTERIZATION CHECK - COMMENTED OUT
+        # if quality_posterization_score < MIN_QUALITY_SCORE:
+        #     results["compliant"] = False
+        #     results["reasons"].append("Efecto de posterización detectado (baja calidad de color)")
+        #     early = maybe_early_return()
+        #     if early:
+        #         return early
         
         if quality_focus_score < MIN_QUALITY_SCORE:
             results["compliant"] = False
