@@ -43,15 +43,19 @@ async def save_validation_result(file_path: str, original_filename: str, validat
     extension = extension.replace(".", "").lower() # ej: "jpg"
 
     # 2. Preparar datos para tabla DOCUMENT
-    # src apunta ahora a la URL de S3 donde está almacenada la imagen
+    # src: Ruta de documento estándar (/document/{id})
+    # src_s3: Nombre del archivo en S3 con / al inicio (/{uuid}.ext)
+    # is_s3: Flag indicando que el archivo está almacenado en S3 (1 = true)
     document_data = {
         "id": document_id,
         "unique_hash": unique_hash,
-        "name": new_filename,  # Usamos el nombre UUID, no el original
+        "name": new_filename,  # UUID.ext (ej: f91b8d73-c1c6-43da-91b5-28cb42d1d6b3.png)
         "version": 1,
         "extension": extension,
         "entity_id": None, # No tenemos entity_id en este contexto, se deja NULL
-        "src": s3_url,  # URL completa del archivo en S3
+        "src": f"/document/{document_id}",  # Ruta de documento estándar
+        "src_s3": f"/minrel03_sac/fotografias/{new_filename}",  # Ruta del archivo en S3
+        "is_s3": 1,  # Flag: archivo almacenado en S3
         "valid": 1,
         "area_id": DEFAULT_AREA_ID,
         "owner_id": None, # No tenemos owner_id del usuario logueado
@@ -95,9 +99,9 @@ def _save_to_database_sync(document_data: dict, validation_data: dict):
         # A. Insertar en DOCUMENT
         query_doc = text("""
             INSERT INTO document (
-                id, unique_hash, name, version, extension, entity_id, src, valid, area_id, owner_id, size, created_by
+                id, unique_hash, name, version, extension, entity_id, src, src_s3, is_s3, valid, area_id, owner_id, size, created_by
             ) VALUES (
-                :id, :unique_hash, :name, :version, :extension, :entity_id, :src, :valid, :area_id, :owner_id, :size, :created_by
+                :id, :unique_hash, :name, :version, :extension, :entity_id, :src, :src_s3, :is_s3, :valid, :area_id, :owner_id, :size, :created_by
             )
         """)
         conn.execute(query_doc, document_data)
