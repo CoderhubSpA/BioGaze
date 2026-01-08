@@ -19,8 +19,16 @@ services:
             MIN_WIDTH: ${MIN_WIDTH}
             MIN_HEIGHT: ${MIN_HEIGHT}
             ASPECT_RATIO: ${ASPECT_RATIO}
+            ASPECT_RATIO_THRESHOLD: ${ASPECT_RATIO_THRESHOLD}
             SKIP_RESOLUTION_CHECK: ${SKIP_RESOLUTION_CHECK}
             SKIP_RATIO_CHECK: ${SKIP_RATIO_CHECK}
+            # S3 / AWS Storage
+            S3_ENABLED: ${S3_ENABLED}
+            AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+            AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+            AWS_REGION: ${AWS_REGION}
+            S3_BUCKET_NAME: ${S3_BUCKET_NAME}
+            AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL}
             # Database
             DB_CONNECTION: ${DB_CONNECTION}
             DB_HOST: ${DB_HOST}
