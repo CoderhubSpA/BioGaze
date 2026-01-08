@@ -147,12 +147,14 @@ class BioGazeAdapter(IPhotoValidator):
             with Image.open(image_path) as img:
                 img_width, img_height = img.size
                 
-                # Proporción del rostro (70-80% de la altura)
+                # Proporción del rostro (configurable desde checks_config.yaml)
                 face_ratio = face_height / img_height
-                # Relajamos un poco el rango para evitar falsos positivos estrictos (60-85%)
-                if not (0.60 <= face_ratio <= 0.85):
+                if not (config.MIN_FACE_SIZE_RATIO <= face_ratio <= config.MAX_FACE_SIZE_RATIO):
                     results["compliant"] = False
-                    results["reasons"].append(f"El rostro no ocupa el tamaño adecuado (se requiere que ocupe el 70-80%)")
+                    results["reasons"].append(
+                        f"El rostro no ocupa el tamaño adecuado "
+                        f"(se requiere que ocupe el {config.MIN_FACE_SIZE_RATIO*100:.0f}-{config.MAX_FACE_SIZE_RATIO*100:.0f}%)"
+                    )
                     early = maybe_early_return()
                     if early:
                         return early

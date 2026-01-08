@@ -1,0 +1,135 @@
+# BioGaze - Configuración de Thresholds para Checks de Calidad
+# Este archivo contiene todos los umbrales y parámetros para los diferentes checks
+# Puede ser modificado sin necesidad de rebuildear el contenedor Docker
+
+# =============================================================================
+# HEADPOSE THRESHOLDS
+# =============================================================================
+headpose:
+  min_yaw: -7
+  max_yaw: 7
+  min_pitch: -7
+  max_pitch: 7
+  min_roll: -10
+  max_roll: 10
+
+# =============================================================================
+# EYES OPEN, MOUTH OPEN THRESHOLDS
+# =============================================================================
+facial_features:
+  mouth_threshold: 0.5
+  eyes_threshold: 0.09
+
+# =============================================================================
+# IMAGE AND FACE DIMENSION THRESHOLDS
+# =============================================================================
+face_dimensions:
+  # Face size ratio (percentage of image height the face should occupy)
+  min_face_size_ratio: 0.60  # 60%
+  max_face_size_ratio: 0.85  # 85%
+  
+  # Face width to height ratio
+  min_width_height_ratio: 0.74
+  max_width_height_ratio: 0.80
+  
+  # Face horizontal position (distance from left edge as proportion of image width)
+  min_left_distance: 0.45
+  max_left_distance: 0.55
+  
+  # Face vertical position (distance from top edge as proportion of image height)
+  min_top_distance: 0.30
+  max_top_distance: 0.50
+  
+  # Head width relative to image width
+  min_width_head: 0.50
+  max_width_head: 0.75
+  
+  # Head height relative to image height
+  min_height_head: 0.60
+  max_height_head: 0.90
+  
+  # Minimum inter-eye distance
+  minimum_ied: 0.50
+
+# =============================================================================
+# EXPOSURE CONSTANTS
+# =============================================================================
+exposure:
+  # Dark exposure thresholds
+  avg_dark_threshold: 0.0055
+  max_dark_threshold: 0.015
+  
+  # Light exposure thresholds
+  avg_light_threshold: 0.0035
+  max_light_threshold: 0.015
+
+# =============================================================================
+# PIXELATION THRESHOLDS
+# =============================================================================
+pixelation:
+  pixelated_min_threshold: 19
+  pixelated_max_threshold: 106
+  pixel_score_threshold: 0.5
+  min_pixel_score: 10
+  max_pixel_score: 110
+
+# =============================================================================
+# EMOTION DETECTION THRESHOLD
+# =============================================================================
+emotion:
+  max_ratio_emotion: 0.35
+
+# =============================================================================
+# PARSER THRESHOLDS
+# =============================================================================
+parser:
+  # Shoulder check
+  max_shoulder_pixel_ratio: 0.55
+  max_shoulder_y_distance: 5
+  
+  # Saturation check
+  oversaturation_threshold: 0.002
+  undersaturation_threshold: 0.06
+  
+  # Face illumination
+  max_bright_light: 5
+  max_dark_light: 70
+  
+  # Background check
+  max_edges_threshold: 900000000
+  avg_variance_threshold: 500
+  homogeneous_proportion_threshold: 0.90
+  superpixel_variance_threshold: 45
+  
+  # Sun/light-dark check
+  max_light_dark_sun: 0.004
+
+# =============================================================================
+# COMPUTER VISION THRESHOLDS
+# =============================================================================
+computer_vision:
+  # Out of focus
+  minimum_focus_threshold: 110
+  minimum_focus_score: 0.3
+  
+  # Posterization
+  max_gaps_threshold: 600
+  gap_histogram_threshold: 0.005
+
+# =============================================================================
+# LANDMARK THRESHOLDS
+# =============================================================================
+landmarks:
+  # Face illumination
+  min_color_ratio_threshold: 0.5
+  
+  # Makeup
+  makeup_high_hue_threshold: 0.15
+  makeup_distance_threshold: 14
+
+# =============================================================================
+# GAZE ESTIMATION THRESHOLDS
+# =============================================================================
+gaze_estimation:
+  maximum_right_threshold: -0.15
+  maximum_left_threshold: 0.08
